@@ -5,7 +5,7 @@
 
 | 编号 | 名称 | 说明 | 负责人 | 状态 | 备注 |
 |---|---|---|---|---|---|
-| API-00 | GET /health | 探活 | 成员B | 已完成 | `a1b2c3d` 2026-10-10 |
+| API-00 | GET /health | 探活 | 成员B | 已完成 | `9fdb168` 2026-10-10 |
 | API-01 | POST /api/resumes/upload | 上传简历并异步解析 | 成员B | 未开始 | M01 |
 | API-02 | GET /api/resumes | 简历分页列表 | 成员B | 未开始 | M01 |
 | API-03 | GET /api/resumes/{id} | 简历详情+实体 | 成员B | 未开始 | M01 |
