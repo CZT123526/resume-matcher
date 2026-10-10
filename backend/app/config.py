@@ -21,13 +21,11 @@ class Settings:
     # 服务端口（与前端 5173 错开）
     BACKEND_PORT = int(os.getenv("BACKEND_PORT", "8000"))
 
-    # DeepSeek（OpenAI 兼容接口）—— 仅离线评测基线使用，系统运行时零 API 依赖
-    DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "")
-    DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
-    DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-v4.1-flash")
-
     # SQLite 业务库文件路径（相对 backend/ 目录）
     DB_PATH = os.getenv("DB_PATH", "../db/recruiter.db")
+
+    # 注：DeepSeek 相关配置只存在于 backend/tools/baselines/deepseek_zeroshot.py
+    # （离线对照组，直接读环境变量）——运行时配置零外部 API 引用（TC-API-01 红线）。
 
 
 settings = Settings()

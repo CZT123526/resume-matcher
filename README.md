@@ -44,7 +44,18 @@ python -m venv .venv                       # 首次
 # 验证：浏览器开 http://127.0.0.1:8000/api/health → {"status":"ok"}
 ```
 
-### 3. 启动前端（端口 5173）
+### 3.（可选）装 BERT 运行时——不装则自动降级 TF-IDF，系统照样可用
+
+```bash
+./.venv/Scripts/python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+./.venv/Scripts/python -m pip install "transformers>=4.41"
+# 首次跑匹配任务时会经 hf-mirror 自动下载 bert-base-chinese（约 400MB，进本地缓存不进 git）
+```
+
+NER 微调模型训练好放到 `backend/models/ner/` 即自动启用（实体抽取 source 变 bert，
+skill/years/school 等模型无标签字段仍由规则兜底，见 `app/svc/ner.py` 字段级合并）。
+
+### 4. 启动前端（端口 5173）
 
 ```bash
 cd frontend
@@ -57,16 +68,21 @@ npm run dev
 
 | 命令 | 说明 |
 |---|---|
-| `cd backend && .venv/Scripts/python -m pytest -q` | 跑后端单测 |
+| `cd backend && .venv/Scripts/python -m pytest -q` | 跑后端单测（62 个） |
 | `npm run build`（frontend） | 前端构建验证 |
-| `sqlite3 recruiter.db < schema.sql`（db 目录下执行） | 重建业务库 |
+| `cd backend && .venv/Scripts/python scripts/smoke_e2e.py` | 起服后跑端到端冒烟（另开终端） |
+| `cd backend && .venv/Scripts/python tools/run_experiments.py` | 三组对比实验 → docs/eval/ |
+| `cd backend && .venv/Scripts/python tools/data/download_dataset.py` | 下载简历NER数据集并转语料 |
+| `cd backend && NER_DATA_DIR=... python tools/train_ner.py` | NER 微调（建议 Colab T4，见脚本头部） |
+| `docker compose up --build` | 一键全栈（需 Docker） |
 | `git checkout -b feat/xxx` | 开新功能分支（规范见下） |
 
 ## 目录结构
 
 ```
 ├── backend/    FastAPI 后端（app/api 接口层、app/schemas 数据契约、app/svc 服务层、
-│               app/core 异常体系、tools 离线评测、tests 单测）
+│               app/core 异常体系、tools 离线评测与训练、tests 单测）
+│               models/ner/ —— NER 微调产物放这里即自动启用（不入库）
 ├── frontend/   Vite+React 前端
 ├── docs/       图纸（算法设计/api-schemas/开发规范/backend-api/technical）+ status 四表
 ├── db/         schema.sql（唯一数据源）+ 运行期数据（不入库）
