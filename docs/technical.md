@@ -9,18 +9,22 @@
 frontend/ (Vite+React, 5173)         纯展示与交互，业务逻辑不下前端
     │  fetch /api/*（Vite 代理）
 backend/app/
-    ├── main.py        应用装配（FastAPI 实例、CORS、路由挂载）
+    ├── main.py        应用装配（FastAPI 实例、CORS、全局异常处理、路由挂载）
     ├── config.py      配置中心（.env 注入，密钥不落代码）
     ├── api/           接口层：参数校验 + 调服务层 + 统一响应包裹；禁止写业务逻辑
-    ├── svc/           服务层：业务逻辑 + 模型推理封装；数据访问(SQLite)也在此层，
-    │                  3人项目不单拆 dao 层，避免过度设计
-    ├── tools/         离线脚本：评测基线、指标图表（不进请求链路）
+    ├── schemas/       数据契约：全部请求/响应的 Pydantic 模型（对应 docs/api-schemas.md）
+    ├── core/          横切组件：统一错误码与 AppError 异常体系
+    ├── common/        通用工具：统一响应包裹 ok()/fail()
+    ├── svc/           服务层：业务逻辑 + 模型推理封装；签名契约见 svc/contracts.py（S01–S11）；
+    │                  数据访问(SQLite)也在此层，3人项目不单拆 dao 层，避免过度设计
+    ├── tools/         离线脚本：训练、评测基线、DeepSeek 对照（不进请求链路，禁止被 app/ import）
     └── tests/         pytest 单测；每次改动必须全绿
 db/  schema.sql（唯一数据源）+ 运行期 recruiter.db + vectors.npy 语义向量缓存（均不入库）
-docs/ 契约与状态表（契约先行）
+docs/ 契约与状态表（契约先行）：算法设计.md / api-schemas.md / 开发规范.md 为三大图纸
 ```
 
 **分层理由**：接口契约稳定（前端依赖它），模型实现可替换（NER 模型升级版本、换底座，Schema 不变即插即用）。
+**面向接口编程的落地**：三层契约——HTTP 契约（backend-api.md + api-schemas.md）、数据契约（schemas/ 代码）、服务契约（svc/contracts.py 签名即契约）；变更流程见 docs/开发规范.md §1。
 
 ## 2. 关键设计决策
 

@@ -1,13 +1,46 @@
-"""应用入口：FastAPI 实例与健康检查路由。
+"""应用入口：FastAPI 实例、全局异常处理与健康检查路由。
 
 启动：uvicorn app.main:app --port 8000 --reload
+
+分层纪律：本文件与 api/ 路由层只做参数校验和调用 svc/，业务逻辑一律下沉 svc/。
 """
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.config import settings
+from app.core.errors import AppError, ErrorCode, HTTP_STATUS
 
 app = FastAPI(title="resume-matcher", version=settings.VERSION)
+
+
+# ---------- 全局异常处理：所有错误统一为 {"code","message","data"} 包裹 ----------
+@app.exception_handler(AppError)
+async def app_error_handler(request: Request, exc: AppError):
+    """业务异常：svc 层 raise AppError，这里统一转响应（api 层无需 try/except）"""
+    return JSONResponse(
+        status_code=exc.http_status,
+        content={"code": exc.code.value, "message": exc.message, "data": None},
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error_handler(request: Request, exc: RequestValidationError):
+    """参数校验失败：FastAPI 默认 422，按契约统一为 400 + E4001"""
+    return JSONResponse(
+        status_code=HTTP_STATUS[ErrorCode.BAD_PARAM],
+        content={"code": ErrorCode.BAD_PARAM.value, "message": "参数错误", "data": None},
+    )
+
+
+@app.exception_handler(Exception)
+async def unhandled_error_handler(request: Request, exc: Exception):
+    """兜底：未预期异常统一为 500 + E5001，不向前端泄露堆栈"""
+    return JSONResponse(
+        status_code=HTTP_STATUS[ErrorCode.INTERNAL],
+        content={"code": ErrorCode.INTERNAL.value, "message": "服务内部错误", "data": None},
+    )
 
 # 允许前端开发服务器(5173)跨域访问
 app.add_middleware(

@@ -1,6 +1,7 @@
 # backend-api.md — API 契约（唯一准绳）
 
 > **改接口必须先改本文档再改代码**；前后端联调以本文档为准。
+> 每个字段的类型/约束/示例见 [api-schemas.md](api-schemas.md)（代码契约：`backend/app/schemas/`）。
 > 架构约定：**运行时零外部 API 依赖**，全部推理由本地 BERT 完成；DeepSeek 仅存在于离线评测脚本（不提供 HTTP 接口）。
 > 实现进度见 [status/api.md](status/api.md)。
 
