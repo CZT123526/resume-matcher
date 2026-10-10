@@ -9,6 +9,8 @@ import pytest
 
 _TEST_DB = os.path.join(tempfile.gettempdir(), "resume_matcher_test.db")
 os.environ["DB_PATH"] = _TEST_DB
+# 测试强制 TF-IDF 降级编码（不加载 BERT，秒级跑完）；BERT 主路另有手动冒烟
+os.environ["FORCE_TFIDF"] = "1"
 
 # 会话开始前清掉旧测试库，保证用例互不污染
 if os.path.exists(_TEST_DB):

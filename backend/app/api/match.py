@@ -1,0 +1,123 @@
+"""匹配任务接口（API-08/09/10）+ 模型信息（API-12），契约见 docs/backend-api.md §3/§5。"""
+import json
+
+from fastapi import APIRouter, BackgroundTasks
+
+from app.common.response import ok
+from app.core.errors import AppError, ErrorCode
+from app.db import get_db
+from app.schemas.match import MatchTaskCreate
+from app.svc.match_pipeline import run_match_pipeline
+from app.svc.ner import METRICS_FILE
+
+router = APIRouter(tags=["match"])
+
+
+@router.post("/api/match-tasks", status_code=202)
+def create_match_task(background: BackgroundTasks, body: MatchTaskCreate):
+    """发起匹配（202 受理），后台执行，前端轮询任务状态"""
+    conn = get_db()
+    try:
+        exists = conn.execute("SELECT 1 FROM jds WHERE id=?", (body.jd_id,)).fetchone()
+        if exists is None:
+            raise AppError(ErrorCode.NOT_FOUND, f"JD {body.jd_id} 不存在")
+        cur = conn.execute(
+            "INSERT INTO match_tasks(jd_id, top_k, status) VALUES(?,?,'pending')",
+            (body.jd_id, body.top_k),
+        )
+        task_id = cur.lastrowid
+        conn.commit()
+    finally:
+        conn.close()
+
+    background.add_task(run_match_pipeline, task_id, body.jd_id, body.top_k)
+    return ok({"task_id": task_id, "status": "pending"})
+
+
+@router.get("/api/match-tasks/{task_id}")
+def match_task_status(task_id: int):
+    """轮询任务状态（2s 间隔）"""
+    conn = get_db()
+    try:
+        row = conn.execute(
+            "SELECT id, status, progress, error FROM match_tasks WHERE id=?", (task_id,)
+        ).fetchone()
+    finally:
+        conn.close()
+    if row is None:
+        raise AppError(ErrorCode.NOT_FOUND, f"任务 {task_id} 不存在")
+    return ok({
+        "task_id": row["id"],
+        "status": row["status"],
+        "progress": row["progress"],
+        "error": row["error"],
+    })
+
+
+@router.get("/api/match-tasks/{task_id}/results")
+def match_task_results(task_id: int):
+    """排名结果：rank 升序，score 0~1 四位小数，evidence 契约文案"""
+    conn = get_db()
+    try:
+        task = conn.execute(
+            "SELECT id, status, jd_id FROM match_tasks WHERE id=?", (task_id,)
+        ).fetchone()
+        if task is None:
+            raise AppError(ErrorCode.NOT_FOUND, f"任务 {task_id} 不存在")
+        if task["status"] != "done":
+            raise AppError(ErrorCode.CONFLICT, f"任务尚未完成（当前 {task['status']}），完成后再取结果")
+
+        jd = conn.execute("SELECT title FROM jds WHERE id=?", (task["jd_id"],)).fetchone()
+        result_rows = conn.execute(
+            "SELECT resume_id, rank, score, evidence_json FROM match_results "
+            "WHERE task_id=? ORDER BY rank",
+            (task_id,),
+        ).fetchall()
+        # 候选人名：取该简历的 name 实体；没有则占位（契约：候选人{resume_id}）
+        name_rows = conn.execute(
+            "SELECT e.resume_id, e.field_value FROM entities e "
+            "JOIN match_results m ON m.resume_id = e.resume_id "
+            "WHERE m.task_id=? AND e.field_key='name'",
+            (task_id,),
+        ).fetchall()
+    finally:
+        conn.close()
+
+    names = {r["resume_id"]: r["field_value"] for r in name_rows}
+    items = [
+        {
+            "rank": r["rank"],
+            "resume_id": r["resume_id"],
+            "candidate_name": names.get(r["resume_id"], f"候选人{r['resume_id']}"),
+            "score": r["score"],
+            "evidence": json.loads(r["evidence_json"] or "[]"),
+        }
+        for r in result_rows
+    ]
+    return ok({"task_id": task_id, "jd_title": jd["title"] if jd else "", "items": items})
+
+
+@router.get("/api/model/info")
+def model_info():
+    """模型信息：训练产物 metrics.json 存在则真实指标，否则如实返回未训练状态"""
+    if METRICS_FILE.exists():
+        metrics = json.loads(METRICS_FILE.read_text(encoding="utf-8"))
+        return ok({
+            "model_name": "bert-base-chinese-ner",
+            "version": metrics.get("version", "v1"),
+            "f1": float(metrics.get("f1", 0.0)),
+            "train_samples": int(metrics.get("train_samples", 0)),
+            "updated_at": metrics.get("trained_at", ""),
+        })
+    from app.svc.embedding import get_encoder
+
+    kind = get_encoder().kind
+    label = "bert-base-chinese（语义编码）；NER=规则兜底（微调模型未就位）" if kind == "bert" \
+        else "TF-IDF 降级编码；NER=规则兜底（模型环境缺失）"
+    return ok({
+        "model_name": label,
+        "version": "v0-rules",
+        "f1": 0.0,
+        "train_samples": 0,
+        "updated_at": "",
+    })

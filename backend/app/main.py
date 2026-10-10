@@ -14,7 +14,7 @@ from fastapi.responses import JSONResponse
 from app.config import settings
 from app.core.errors import AppError, ErrorCode, HTTP_STATUS
 from app.db import init_db
-from app.api import resumes
+from app.api import jds, match, resumes
 
 
 @asynccontextmanager
@@ -104,3 +104,5 @@ def health():
 
 # 业务路由挂载
 app.include_router(resumes.router)
+app.include_router(jds.router)
+app.include_router(match.router)
