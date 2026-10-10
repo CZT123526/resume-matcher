@@ -54,6 +54,9 @@ def extract_entities_bert(text: str) -> list[dict[str, str]]:
     """抽取简历实体（契约见 svc/contracts.py S02）。
 
     出参: [{"field_key", "field_value", "source"}]，source ∈ {bert, rule}
+
+    字段级合并：微调数据集只有 NAME/EDU/ORG/TITLE 等标签、没有 skill/years/school，
+    BERT 只覆盖它擅长的字段；其余字段由规则补齐（source=rule），证据链不受影响。
     """
     pipe = _get_bert_pipeline()
     if pipe is None:
@@ -76,7 +79,13 @@ def extract_entities_bert(text: str) -> list[dict[str, str]]:
                     )
         except Exception as exc:
             logger.warning("BERT 抽取分句失败，跳过该句: %s", exc)
-    return entities or ner_rules.extract_entities(text)
+
+    # 字段级兜底合并：BERT 没抽到的字段用规则补（同字段同值去重）
+    covered = {e["field_key"] for e in entities}
+    for e in ner_rules.extract_entities(text):
+        if e["field_key"] not in covered:
+            entities.append(e)
+    return entities
 
 
 def _map_label(label: str) -> str | None:

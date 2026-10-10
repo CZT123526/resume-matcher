@@ -26,6 +26,8 @@ npm-debug.log*
 *.npz
 db/resume_ids.json
 backend/models/
+backend/tools/data/raw/
+backend/tools/data/ner_*.jsonl
 logs/
 *.log
 
