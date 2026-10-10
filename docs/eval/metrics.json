@@ -1,0 +1,25 @@
+{
+  "n_pairs": 2,
+  "n_queries": 1,
+  "n_resumes": 3,
+  "groups": {
+    "BERT语义匹配": {
+      "ndcg@10": 1.0,
+      "p@5": 0.5,
+      "queries": 1,
+      "encoder": "bert",
+      "rank_seconds": 0.036,
+      "note": ""
+    },
+    "TF-IDF基线": {
+      "ndcg@10": 1.0,
+      "p@5": 0.5,
+      "queries": 1,
+      "rank_seconds": 0.002
+    },
+    "DeepSeek零样本": {
+      "skipped": true,
+      "reason": "未配置 DEEPSEEK_API_KEY（见工作日志待拍板 #1）"
+    }
+  }
+}
