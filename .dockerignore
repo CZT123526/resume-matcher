@@ -1,0 +1,18 @@
+# 构建上下文瘦身（compose 的 context 是仓库根）
+.git
+.venv
+venv
+**/__pycache__
+**/node_modules
+**/.pytest_cache
+data/
+backend/models/
+backend/.env
+.env
+*.db
+*.sqlite3
+*.npy
+*.npz
+db/resume_ids.json
+docs/eval/
+*.log

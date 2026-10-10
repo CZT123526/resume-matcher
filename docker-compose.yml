@@ -1,0 +1,36 @@
+# 一键起全套（M06）：docker compose up --build
+#   前端    http://localhost:5173
+#   后端    http://localhost:8000/docs
+# 注意：本机无 Docker，未实机验证（工作日志 T17）。首次启动后第一次匹配任务
+# 会经 hf-mirror 下载 bert-base-chinese（约 400MB，落 hf-cache 卷，仅下载一次）。
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - HF_ENDPOINT=https://hf-mirror.com
+    volumes:
+      - ./data:/srv/data              # SQLite + 向量缓存
+      - hf-cache:/root/.cache/huggingface
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3)\""]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    ports:
+      - "5173:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  hf-cache:
