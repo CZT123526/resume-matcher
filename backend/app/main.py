@@ -4,6 +4,8 @@
 
 分层纪律：本文件与 api/ 路由层只做参数校验和调用 svc/，业务逻辑一律下沉 svc/。
 """
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -11,8 +13,35 @@ from fastapi.responses import JSONResponse
 
 from app.config import settings
 from app.core.errors import AppError, ErrorCode, HTTP_STATUS
+from app.db import init_db
+from app.api import resumes
 
-app = FastAPI(title="resume-matcher", version=settings.VERSION)
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    """启动时自动建表（schema.sql 全 IF NOT EXISTS，幂等）；
+    并把上次服务中断遗留的进行中任务标记失败（BackgroundTasks 不跨重启）"""
+    init_db()
+    conn = None
+    from app.db import get_db
+
+    conn = get_db()
+    try:
+        conn.execute(
+            "UPDATE resumes SET parse_status='failed', parse_error='服务重启中断解析，请重新上传' "
+            "WHERE parse_status IN ('pending','processing')"
+        )
+        conn.execute(
+            "UPDATE match_tasks SET status='failed', error='服务重启中断任务', finished_at=datetime('now','localtime') "
+            "WHERE status IN ('pending','running')"
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    yield
+
+
+app = FastAPI(title="resume-matcher", version=settings.VERSION, lifespan=lifespan)
 
 
 # ---------- 全局异常处理：所有错误统一为 {"code","message","data"} 包裹 ----------
@@ -71,3 +100,7 @@ def health():
     /health 供直连探活；/api/health 供 Vite 代理路径（前端统一走 /api 前缀）。
     """
     return {"status": "ok"}
+
+
+# 业务路由挂载
+app.include_router(resumes.router)

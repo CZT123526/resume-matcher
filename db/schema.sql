@@ -1,9 +1,10 @@
 -- ============================================================
--- recruiter-agent 业务库建表脚本（SQLite）
+-- resume-matcher 业务库建表脚本（SQLite）
 -- 唯一数据源：本文件。改表 = 先改这里并提交，再动代码。
 -- 纪律：SQLite 无 COMMENT ON 语法，每个字段用行内 -- 注释说明；
 --       共享表加列必须带 DEFAULT（向后兼容，防止他人旧代码插入报错）。
 -- 重建命令：sqlite3 ../db/recruiter.db < schema.sql
+--           （应用启动时也会自动执行本脚本，幂等）
 -- ============================================================
 
 -- 简历原始记录表：一份上传文件一行
@@ -24,7 +25,7 @@ CREATE TABLE IF NOT EXISTS entities (
     resume_id     INTEGER NOT NULL REFERENCES resumes(id) ON DELETE CASCADE, -- 所属简历
     field_key     TEXT    NOT NULL,                  -- 字段名：name/degree/school/skill/years/company/title
     field_value   TEXT,                               -- 字段值
-    source        TEXT    NOT NULL DEFAULT 'bert',   -- 抽取来源：bert（自训练NER模型，运行时唯一来源；预留扩展）
+    source        TEXT    NOT NULL DEFAULT 'bert',   -- 抽取来源：bert（自训练NER模型）；rule（规则兜底，模型未就位时）
     created_at    TEXT    NOT NULL DEFAULT (datetime('now','localtime')) -- 抽取时间
 );
 CREATE INDEX IF NOT EXISTS idx_entities_resume ON entities(resume_id); -- 按简历取全部实体
@@ -34,7 +35,7 @@ CREATE TABLE IF NOT EXISTS jds (
     id            INTEGER PRIMARY KEY AUTOINCREMENT, -- JD ID
     title         TEXT    NOT NULL,                  -- 岗位名称，如"Python后端工程师"
     content       TEXT    NOT NULL,                  -- JD 原文（HR输入，不改动）
-    req_json      TEXT,                              -- LLM抽取的结构化要求JSON：{degree, min_years, skills[]}
+    req_json      TEXT,                              -- 规则+NER离线抽取的结构化要求JSON：{degree, min_years, skills[]}
     created_at    TEXT    NOT NULL DEFAULT (datetime('now','localtime')) -- 创建时间
 );
 
@@ -56,8 +57,8 @@ CREATE TABLE IF NOT EXISTS match_results (
     task_id       INTEGER NOT NULL REFERENCES match_tasks(id) ON DELETE CASCADE, -- 所属任务
     resume_id     INTEGER NOT NULL REFERENCES resumes(id),     -- 候选人简历
     rank          INTEGER NOT NULL,                  -- 排名（1=最匹配）
-    score         REAL    NOT NULL,                  -- 匹配分 0-100
-    evidence_json TEXT    NOT NULL DEFAULT '[]',     -- 证据链JSON数组，如["3年Python经验 ✓"]
+    score         REAL    NOT NULL,                  -- 归一化语义相似度 0~1（4位小数），见 docs/算法设计.md §3
+    evidence_json TEXT    NOT NULL DEFAULT '[]',     -- 证据链JSON数组，文案格式见 docs/算法设计.md §4
     created_at    TEXT    NOT NULL DEFAULT (datetime('now','localtime')) -- 生成时间
 );
 CREATE INDEX IF NOT EXISTS idx_results_task ON match_results(task_id, rank); -- 按任务取排名结果
