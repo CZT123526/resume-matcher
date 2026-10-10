@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS entities (
     resume_id     INTEGER NOT NULL REFERENCES resumes(id) ON DELETE CASCADE, -- 所属简历
     field_key     TEXT    NOT NULL,                  -- 字段名：name/degree/school/skill/years/company/title
     field_value   TEXT,                               -- 字段值
-    source        TEXT    NOT NULL DEFAULT 'llm',    -- 抽取来源：llm（DeepSeek）/ bert（自训练蒸馏模型）
+    source        TEXT    NOT NULL DEFAULT 'bert',   -- 抽取来源：bert（自训练NER模型，运行时唯一来源；预留扩展）
     created_at    TEXT    NOT NULL DEFAULT (datetime('now','localtime')) -- 抽取时间
 );
 CREATE INDEX IF NOT EXISTS idx_entities_resume ON entities(resume_id); -- 按简历取全部实体
@@ -62,18 +62,7 @@ CREATE TABLE IF NOT EXISTS match_results (
 );
 CREATE INDEX IF NOT EXISTS idx_results_task ON match_results(task_id, rank); -- 按任务取排名结果
 
--- Agent 执行日志表：多Agent每步操作留痕（演示"思考过程"数据源）
-CREATE TABLE IF NOT EXISTS agent_logs (
-    id            INTEGER PRIMARY KEY AUTOINCREMENT, -- 日志ID
-    task_id       INTEGER,                           -- 关联任务（对话类日志可为NULL）
-    agent         TEXT    NOT NULL,                  -- Agent名：调度Agent/解析Agent/匹配Agent
-    step          TEXT    NOT NULL,                  -- 步骤名：意图理解/硬过滤/向量检索/交叉打分...
-    payload_json  TEXT,                              -- 输入输出摘要JSON
-    created_at    TEXT    NOT NULL DEFAULT (datetime('now','localtime')) -- 发生时间
-);
-CREATE INDEX IF NOT EXISTS idx_logs_task ON agent_logs(task_id); -- 按任务取执行轨迹
-
--- 用户表（M07 权限模块预留，当前版本不启用）
+-- 用户表（权限模块预留，当前版本不启用）
 CREATE TABLE IF NOT EXISTS users (
     id            INTEGER PRIMARY KEY AUTOINCREMENT, -- 用户ID
     username      TEXT    NOT NULL UNIQUE,           -- 登录名

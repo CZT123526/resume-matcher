@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 
-app = FastAPI(title="recruiter-agent", version=settings.VERSION)
+app = FastAPI(title="resume-matcher", version=settings.VERSION)
 
 # 允许前端开发服务器(5173)跨域访问
 app.add_middleware(

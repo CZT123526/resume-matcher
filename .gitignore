@@ -22,7 +22,7 @@ npm-debug.log*
 # ===== 数据与日志 =====
 *.db
 *.sqlite3
-db/chroma/
+*.npy
 logs/
 *.log
 

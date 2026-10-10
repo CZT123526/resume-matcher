@@ -1,12 +1,13 @@
 # backend-api.md — API 契约（唯一准绳）
 
 > **改接口必须先改本文档再改代码**；前后端联调以本文档为准。
+> 架构约定：**运行时零外部 API 依赖**，全部推理由本地 BERT 完成；DeepSeek 仅存在于离线评测脚本（不提供 HTTP 接口）。
 > 实现进度见 [status/api.md](status/api.md)。
 
 ## 通用约定
 
-- Base URL：`http://127.0.0.1:8000`；前端经 Vite 代理以 `/api`、`/health` 访问
-- 登录：当前版本全部接口**不需要登录**（M07 预留 `/api/auth/*`，届时补"是否需要登录"标注）
+- Base URL：`http://127.0.0.1:8000`；前端经 Vite 代理以 `/api` 前缀访问
+- 登录：当前版本全部接口**不需要登录**（users 表预留）
 - 成功响应统一包裹：`{"code": 0, "message": "ok", "data": {...}}`
 - 失败响应：HTTP 状态码 + `{"code": "E####", "message": "错误说明", "data": null}`
 
@@ -19,15 +20,14 @@
 | 404 | E4041 | 资源不存在 | resume_id / task_id 无效 |
 | 409 | E4091 | 状态冲突 | 任务运行中重复发起 |
 | 413 | E4131 | 文件过大 | 简历 > 10MB |
-| 429 | E4291 | 上游LLM限流 | DeepSeek 429 |
 | 500 | E5001 | 服务内部错误 | 未捕获异常 |
-| 502 | E5021 | LLM服务不可用 | DeepSeek 连接失败/超时 |
 
 ---
 
 ## 0. 健康检查
 
 ### GET /health ｜无需登录 ｜✅ 已实现
+- 直连探活；`GET /api/health` 为代理路径别名（前端统一走 `/api` 前缀）
 - 响应：`{"status": "ok"}`
 
 ---
@@ -35,7 +35,7 @@
 ## 1. 简历模块（M01）
 
 ### POST /api/resumes/upload ｜无需登录
-上传简历，后台异步解析（LLM结构化抽取），返回 resume_id 供轮询。
+上传简历，后台异步解析（BERT NER 抽取），返回 resume_id 供轮询。
 - 请求：`multipart/form-data`，字段 `file`（PDF/DOCX，≤10MB）
 - 响应 `202`：
 ```json
@@ -58,9 +58,9 @@
   "resume_id": 1, "file_name": "张三.pdf", "parse_status": "done",
   "raw_text": "（前500字预览……）",
   "entities": [
-    {"field_key": "name", "field_value": "张三", "source": "llm"},
-    {"field_key": "degree", "field_value": "本科", "source": "llm"},
-    {"field_key": "skill", "field_value": "Python", "source": "llm"}
+    {"field_key": "name", "field_value": "张三", "source": "bert"},
+    {"field_key": "degree", "field_value": "本科", "source": "bert"},
+    {"field_key": "skill", "field_value": "Python", "source": "bert"}
   ],
   "created_at": "2026-10-10 15:00:00"
 }}
@@ -71,7 +71,7 @@
 
 ---
 
-## 2. 岗位 JD 模块（M03）
+## 2. 岗位 JD 模块（M02）
 
 ### POST /api/jds ｜无需登录
 - 请求体：
@@ -82,7 +82,7 @@
 ```json
 {"code": 0, "message": "ok", "data": {"jd_id": 1, "title": "Python后端工程师"}}
 ```
-> 说明：`content` 原文入库；由 LLM 抽取的结构化要求（学历/年限/技能列表）写入 `req_json`，前端无需提交。
+> 说明：`content` 原文入库；结构化要求（学历/年限/技能列表）由规则+NER 离线抽取写入 `req_json`，前端无需提交。
 
 ### GET /api/jds ｜无需登录
 - 响应 `200`：`{"code": 0, "message": "ok", "data": {"items": [{"jd_id": 1, "title": "Python后端工程师", "created_at": "..."}]}}`
@@ -92,7 +92,7 @@
 
 ---
 
-## 3. 匹配任务模块（M03 核心）
+## 3. 匹配任务模块（M02 核心）
 
 ### POST /api/match-tasks ｜无需登录
 - 请求体：
@@ -116,47 +116,31 @@
 - 响应 `200`（任务 done 后有效）：
 ```json
 {"code": 0, "message": "ok", "data": {"task_id": 1, "jd_title": "Python后端工程师", "items": [
-  {"rank": 1, "resume_id": 1, "candidate_name": "张三", "score": 92.5,
-   "evidence": ["3年Python后端经验 ✓", "熟悉FastAPI ✓", "本科学历 ✓"]}
+  {"rank": 1, "resume_id": 1, "candidate_name": "张三", "score": 0.87,
+   "evidence": ["技能重叠：Python/FastAPI 2/2", "学历满足：本科 ✓", "经验相近：3年/3年 ✓"]}
 ]}}
 ```
+> score 为语义相似度（0–1）；evidence 由规则对比 `req_json` 与简历实体生成，可解释、可复核。
 
 ---
 
-## 4. 对话模块（M03/M04，调度Agent入口）
-
-### POST /api/chat ｜无需登录
-HR 自然语言指令入口（如"帮我找出会Python的人"）。
-- 请求体：
-```json
-{"message": "帮我找出会Python的后端", "task_id": null}
-```
-- 响应 `200`：
-```json
-{"code": 0, "message": "ok", "data": {
-  "reply": "已为你检索到 8 位候选人，其中 3 位匹配 Python 后端要求，是否发起完整匹配？",
-  "intent": "search_candidates",
-  "agent_trace": [{"agent": "调度Agent", "step": "意图理解", "detail": "识别为候选人检索"}]
-}}
-```
-
----
-
-## 5. 报告模块（M05）｜P1
+## 4. 报告模块（M05）｜P1
 
 ### GET /api/reports/{task_id}/export ｜无需登录
-- 响应：`200`，`Content-Type: application/pdf`，文件流（评估报告，含排名、证据链、模型指标）
+- 响应：`200`，`Content-Type: application/pdf`，文件流（评估报告，含排名、证据链、匹配分布）
 
 ---
 
-## 6. 模型管理模块（M02）
+## 5. 模型信息模块（M01/M03）
 
-### GET /api/model/info ｜无需登录 ｜P1
+### GET /api/model/info ｜无需登录
 - 响应 `200`：
 ```json
-{"code": 0, "message": "ok", "data": {"model_name": "bert-base-chinese-ner-distill", "version": "v0.1", "f1": 0.71, "train_samples": 10240, "updated_at": "..."}}
+{"code": 0, "message": "ok", "data": {"model_name": "bert-base-chinese-ner", "version": "v0.1", "f1": 0.85, "train_samples": 12000, "updated_at": "..."}}
 ```
 
-### POST /api/admin/distill ｜无需登录 ｜P1
-触发"LLM自动标注 → 蒸馏训练"流水线（异步）。
-- 响应 `202`：`{"code": 0, "message": "ok", "data": {"job_id": "distill-20261010", "status": "started"}}`
+---
+
+## 附：离线评测说明（无 HTTP 接口）
+
+M04 的三组对比实验以 `backend/tools/` 下脚本运行（TF-IDF 基线 / DeepSeek 零样本基线 / 本系统 BERT），产出指标表与图表文件入 `docs/`，不占用任何运行时接口。

@@ -13,8 +13,8 @@ export default function App() {
 
   return (
     <div style={{ fontFamily: 'sans-serif', maxWidth: 720, margin: '80px auto', textAlign: 'center' }}>
-      <h1>智能招聘初筛与人才匹配系统</h1>
-      <p>多Agent协作 · 骨架 v0.1.0</p>
+      <h1>简历智能解析与人才推荐系统</h1>
+      <p>BERT NER · 语义匹配 · 多模型对比 · 骨架 v0.1.0</p>
       <p>{health}</p>
     </div>
   )

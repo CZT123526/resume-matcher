@@ -1,29 +1,33 @@
-# recruiter-agent — 智能招聘初筛与人才匹配系统
+# resume-matcher — 简历智能解析与人才推荐系统
 
-> 人工智能项目工程实践课程项目 ｜ 多Agent协作：解析Agent → 匹配Agent → 报告生成 ｜ 3人团队
+> 人工智能项目工程实践课程项目 ｜ 《基于BERT与多模型对比的简历智能解析与人才推荐系统》｜ 3人团队
+> 技术路线：**BERT NER 抽取 + BERT 语义匹配 + 多模型对比评测；运行时全本地，零外部 API 依赖**
 
-HR 上传一批简历并用自然语言描述招聘需求，系统自动解析全部简历、检索并交叉验证，输出**带证据链的候选人排名**，支持一键导出评估报告。
+HR 上传一批简历并输入岗位 JD，系统用本地 BERT 模型完成实体抽取与语义匹配，输出**带证据链的候选人排名**。TF-IDF 与 DeepSeek 零样本作为离线对照组，量化证明本地方案在精度/延迟/成本/可离线部署上的工程价值。
 
 ## 架构
 
 ```
-┌─────────────────┐      /api 代理      ┌──────────────────────────┐
-│ frontend (5173) │ ──────────────────> │ backend FastAPI (8000)   │
-│ Vite + React    │                     │  api/  接口层（薄）        │
-└─────────────────┘                     │  svc/  服务层（Agent/LLM） │
-                                        └────┬───────────┬─────────┘
-                                             │           │
-                                    SQLite(db/)   ChromaDB(db/chroma/)
-                                    业务数据          向量检索
+┌─────────────────┐      /api 代理      ┌────────────────────────────┐
+│ frontend (5173) │ ──────────────────> │ backend FastAPI (8000)     │
+│ Vite + React    │                     │  api/  接口层（薄）          │
+└─────────────────┘                     │  svc/  服务层（BERT推理）    │
+                                        │  tools/ 离线评测脚本         │
+                                        └────┬───────────────────────┘
                                              │
-                                    DeepSeek-V4.1-Flash API
+                                   SQLite(db/) + vectors.npy
+                                   业务数据       语义向量缓存
+                                             │
+                              bert-base-chinese（本地推理，CPU可跑）
+                              训练：Google Colab T4
+                              离线对照：TF-IDF ｜ DeepSeek 零样本（不进运行时）
 ```
 
 ## 启动步骤（新成员 10 分钟跑通）
 
 前置：Python 3.11+、Node 18+
 
-### 1. 配置密钥
+### 1. 配置密钥（仅离线评测需要；先跑通骨架可跳过）
 
 ```bash
 cp .env.example backend/.env      # Windows Git Bash；CMD 用 copy
@@ -37,7 +41,7 @@ cd backend
 python -m venv .venv                       # 首次
 ./.venv/Scripts/python -m pip install -r requirements.txt   # 首次
 ./.venv/Scripts/python -m uvicorn app.main:app --port 8000 --reload
-# 验证：浏览器开 http://127.0.0.1:8000/health → {"status":"ok"}
+# 验证：浏览器开 http://127.0.0.1:8000/api/health → {"status":"ok"}
 ```
 
 ### 3. 启动前端（端口 5173）
@@ -55,13 +59,13 @@ npm run dev
 |---|---|
 | `cd backend && .venv/Scripts/python -m pytest -q` | 跑后端单测 |
 | `npm run build`（frontend） | 前端构建验证 |
-| `sqlite3 ../db/recruiter.db < db/schema.sql`（db 目录下执行） | 重建业务库 |
+| `sqlite3 recruiter.db < schema.sql`（db 目录下执行） | 重建业务库 |
 | `git checkout -b feat/xxx` | 开新功能分支（规范见下） |
 
 ## 目录结构
 
 ```
-├── backend/    FastAPI 后端（app/api 接口层、app/svc 服务层、tests 单测）
+├── backend/    FastAPI 后端（app/api 接口层、app/svc 服务层、tools 离线评测、tests 单测）
 ├── frontend/   Vite+React 前端
 ├── docs/       契约与状态表（模块划分/backend-api/technical/test-cases/status四表）
 ├── db/         schema.sql（唯一数据源）+ 运行期数据（不入库）
@@ -78,6 +82,7 @@ npm run dev
 5. **数据库向后兼容**：共享表加列必须带 DEFAULT；破坏性变更全员同拍，改表前备份 `recruiter.db`
 6. **密钥纪律**：`.env` 永不进 git；推送前确认历史提交无密钥
 7. **验证纪律**：每次改动 = 单测 + 构建 + 冒烟全绿（步骤见 [docs/test-cases.md](docs/test-cases.md)）
+8. **架构红线**：`backend/app/` 内禁止出现任何外部 API 调用；DeepSeek 只允许存在于 `backend/tools/` 离线评测脚本
 
 ## 文档索引
 
@@ -86,5 +91,5 @@ npm run dev
 | [docs/模块划分文档.md](docs/模块划分文档.md) | 模块编号、接口归属、优先级、认领 |
 | [docs/backend-api.md](docs/backend-api.md) | API 契约（唯一准绳） |
 | [docs/status/](docs/status/) | api/svc/b-int/modules 四张状态表 |
-| [docs/technical.md](docs/technical.md) | 架构决策、数据库设计、外部服务接入 |
-| [docs/test-cases.md](docs/test-cases.md) | 测试用例与冒烟步骤 |
+| [docs/technical.md](docs/technical.md) | 架构决策、数据库设计、模型接入要点 |
+| [docs/test-cases.md](docs/test-cases.md) | 测试用例、冒烟步骤、零API专项检查 |
