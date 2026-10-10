@@ -1,0 +1,93 @@
+:root {
+  --primary: #2563eb;
+  --primary-weak: #dbeafe;
+  --bg: #f5f7fb;
+  --card: #ffffff;
+  --text: #1f2937;
+  --muted: #6b7280;
+  --border: #e5e7eb;
+  --green: #16a34a;
+  --green-weak: #dcfce7;
+  --red: #dc2626;
+  --red-weak: #fee2e2;
+  --gray-weak: #f3f4f6;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+}
+.app-header {
+  background: linear-gradient(135deg, #1e3a8a, #2563eb);
+  color: #fff;
+  padding: 18px 32px;
+}
+.app-header h1 { margin: 0; font-size: 20px; }
+.app-header p { margin: 4px 0 0; opacity: 0.85; font-size: 13px; }
+.tabs { display: flex; gap: 8px; padding: 12px 32px 0; }
+.tab {
+  border: none; background: transparent; padding: 10px 18px; font-size: 14px;
+  cursor: pointer; border-radius: 8px 8px 0 0; color: var(--muted);
+}
+.tab.active { background: var(--card); color: var(--primary); font-weight: 600; }
+.page { padding: 20px 32px 48px; max-width: 1100px; margin: 0 auto; }
+.card {
+  background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+  padding: 18px 20px; margin-bottom: 16px;
+}
+.card h3 { margin: 0 0 12px; font-size: 15px; }
+.row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.btn {
+  background: var(--primary); color: #fff; border: none; border-radius: 8px;
+  padding: 8px 16px; font-size: 14px; cursor: pointer;
+}
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn.ghost { background: var(--gray-weak); color: var(--text); }
+.btn.danger { background: var(--red-weak); color: var(--red); }
+input, textarea, select {
+  border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px;
+  font-size: 14px; font-family: inherit; background: #fff;
+}
+textarea { width: 100%; min-height: 90px; resize: vertical; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th { text-align: left; color: var(--muted); font-weight: 500; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+td { padding: 10px; border-bottom: 1px solid var(--gray-weak); }
+tr.clickable { cursor: pointer; }
+tr.clickable:hover { background: var(--gray-weak); }
+.badge {
+  display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px;
+}
+.badge.done { background: var(--green-weak); color: var(--green); }
+.badge.failed { background: var(--red-weak); color: var(--red); }
+.badge.processing, .badge.pending, .badge.running { background: #fef9c3; color: #a16207; }
+.chip {
+  display: inline-block; background: var(--primary-weak); color: var(--primary);
+  border-radius: 6px; padding: 3px 10px; font-size: 13px; margin: 2px 4px 2px 0;
+}
+.chip.ok { background: var(--green-weak); color: var(--green); }
+.chip.bad { background: var(--red-weak); color: var(--red); }
+.chip.unknown { background: var(--gray-weak); color: var(--muted); }
+.rank-card {
+  display: flex; gap: 16px; align-items: flex-start;
+  border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 12px;
+  background: var(--card);
+}
+.rank-num {
+  font-size: 22px; font-weight: 700; color: var(--primary); min-width: 44px; text-align: center;
+}
+.rank-num.top { color: #d97706; }
+.candidate { flex: 1; }
+.candidate .name { font-weight: 600; font-size: 15px; }
+.candidate .meta { color: var(--muted); font-size: 13px; margin-top: 2px; }
+.score-wrap { min-width: 180px; }
+.score-num { font-size: 20px; font-weight: 700; color: var(--primary); }
+.bar { background: var(--gray-weak); border-radius: 999px; height: 8px; overflow: hidden; margin-top: 6px; }
+.bar > div { background: linear-gradient(90deg, #60a5fa, #2563eb); height: 100%; }
+.muted { color: var(--muted); font-size: 13px; }
+.error-text { color: var(--red); font-size: 14px; }
+.progress-line { background: var(--gray-weak); border-radius: 999px; height: 10px; overflow: hidden; margin: 8px 0; }
+.progress-line > div { background: var(--primary); height: 100%; transition: width .4s; }
+.field-label { font-size: 13px; color: var(--muted); margin: 10px 0 4px; }
+.empty { text-align: center; color: var(--muted); padding: 28px 0; font-size: 14px; }

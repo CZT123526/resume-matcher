@@ -1,21 +1,37 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
+import Resumes from './pages/Resumes.jsx'
+import Jds from './pages/Jds.jsx'
+import Match from './pages/Match.jsx'
+import ModelInfo from './pages/ModelInfo.jsx'
+import './styles.css'
 
-// 骨架默认页：请求后端 /api/health 展示联通状态，联调通过后替换为真实页面
+const TABS = [
+  { key: 'resumes', label: '简历库', comp: Resumes },
+  { key: 'jds', label: '岗位 JD', comp: Jds },
+  { key: 'match', label: '人才匹配', comp: Match },
+  { key: 'model', label: '模型状态', comp: ModelInfo },
+]
+
 export default function App() {
-  const [health, setHealth] = useState('检测中...')
-
-  useEffect(() => {
-    fetch('/api/health')
-      .then((r) => r.json())
-      .then((d) => setHealth(d.status === 'ok' ? '✅ 后端联通正常' : '⚠️ 后端响应异常'))
-      .catch(() => setHealth('❌ 无法连接后端（请先启动 backend，端口 8000）'))
-  }, [])
+  const [tab, setTab] = useState('resumes')
+  const Active = TABS.find((t) => t.key === tab).comp
 
   return (
-    <div style={{ fontFamily: 'sans-serif', maxWidth: 720, margin: '80px auto', textAlign: 'center' }}>
-      <h1>简历智能解析与人才推荐系统</h1>
-      <p>BERT NER · 语义匹配 · 多模型对比 · 骨架 v0.1.0</p>
-      <p>{health}</p>
+    <div>
+      <header className="app-header">
+        <h1>简历智能解析与人才推荐系统</h1>
+        <p>BERT NER 抽取 · 语义匹配 · 证据链可解释 · 运行时全本地</p>
+      </header>
+      <nav className="tabs">
+        {TABS.map((t) => (
+          <button key={t.key} className={`tab ${tab === t.key ? 'active' : ''}`} onClick={() => setTab(t.key)}>
+            {t.label}
+          </button>
+        ))}
+      </nav>
+      <main className="page">
+        <Active />
+      </main>
     </div>
   )
 }

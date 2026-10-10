@@ -18,18 +18,18 @@ _DEGREE_PATTERNS = [
     ("大专", ("大专", "专科", "高职")),
 ]
 
-# 技能词典：长词优先匹配，避免 "python" 抢了 "python3" 之类；匹配后统一小写
+# 技能词典：展示用原始大小写（证据链显示与 JD 原文一致）；匹配时统一 lower
 SKILL_DICT = [
-    "python", "java", "javascript", "typescript", "c++", "c#", "go", "golang", "rust",
-    "php", "ruby", "kotlin", "swift", "scala", "r语言", "matlab", "sql", "mysql",
-    "postgresql", "redis", "mongodb", "elasticsearch", "kafka", "rabbitmq",
-    "fastapi", "flask", "django", "spring", "springboot", "spring boot", "express",
-    "react", "vue", "angular", "next.js", "node.js", "html", "css",
-    "docker", "kubernetes", "k8s", "linux", "git", "jenkins", "ci/cd",
-    "pytorch", "tensorflow", "keras", "sklearn", "scikit-learn", "pandas", "numpy",
-    "机器学习", "深度学习", "自然语言处理", "nlp", "计算机视觉", "cv", "大模型", "llm",
-    "bert", "transformer", "数据挖掘", "数据分析", "spark", "hadoop", "hive",
-    "excel", "powerbi", "tableau", "photoshop",
+    "Python", "Java", "JavaScript", "TypeScript", "C++", "C#", "Go", "Golang", "Rust",
+    "PHP", "Ruby", "Kotlin", "Swift", "Scala", "R语言", "MATLAB", "SQL", "MySQL",
+    "PostgreSQL", "Redis", "MongoDB", "Elasticsearch", "Kafka", "RabbitMQ",
+    "FastAPI", "Flask", "Django", "Spring", "SpringBoot", "Spring Boot", "Express",
+    "React", "Vue", "Angular", "Next.js", "Node.js", "HTML", "CSS",
+    "Docker", "Kubernetes", "K8s", "Linux", "Git", "Jenkins", "CI/CD",
+    "PyTorch", "TensorFlow", "Keras", "Sklearn", "Scikit-Learn", "Pandas", "NumPy",
+    "机器学习", "深度学习", "自然语言处理", "NLP", "计算机视觉", "CV", "大模型", "LLM",
+    "BERT", "Transformer", "数据挖掘", "数据分析", "Spark", "Hadoop", "Hive",
+    "Excel", "PowerBI", "Tableau", "Photoshop",
 ]
 
 _NAME_RE = re.compile(r"姓名\s*[:：]\s*([一-龥·]{2,4})")
@@ -111,10 +111,17 @@ def extract_entities(text: str) -> list[dict[str, str]]:
     for s in schools:
         add("school", s)
 
-    # skill：词典匹配（长词优先），去重取前30
+    # skill：词典匹配（长词优先，忽略大小写），去重取前30；normalize 统一转小写存储
     text_lower = text.lower()
-    found = [kw for kw in sorted(SKILL_DICT, key=len, reverse=True) if kw in text_lower]
-    for kw in found[:30]:
+    seen_lower: set[str] = set()
+    found = []
+    for kw in sorted(SKILL_DICT, key=len, reverse=True):
+        if kw.lower() in text_lower and kw.lower() not in seen_lower:
+            found.append(kw)
+            seen_lower.add(kw.lower())
+        if len(found) >= 30:
+            break
+    for kw in found:
         add("skill", kw)
 
     # years：多模式取最大值（多段经历常只写总年限）

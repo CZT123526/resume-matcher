@@ -7,7 +7,14 @@ def test_jd_basic_extraction():
     req = build_jd_requirements("要求：3年以上Python开发经验，本科及以上学历，熟悉FastAPI、MySQL，有Docker经验优先")
     assert req["degree"] == "本科"
     assert req["min_years"] == 3
-    assert {"python", "fastapi", "mysql", "docker"} <= set(req["skills"])
+    assert {"python", "fastapi", "mysql", "docker"} <= {s.lower() for s in req["skills"]}
+
+
+def test_jd_skills_display_case():
+    """req_json 技能保留词典展示大小写（证据链显示 "Python/FastAPI" 而非全小写）"""
+    req = build_jd_requirements("熟悉Python与FastAPI")
+    assert "Python" in req["skills"]
+    assert "FastAPI" in req["skills"]
 
 
 def test_jd_year_range_takes_lower():

@@ -43,7 +43,7 @@ def test_jd_crud():
     d = client.get(f"/api/jds/{jd_id}").json()["data"]
     assert d["req_json"]["degree"] == "本科"
     assert d["req_json"]["min_years"] == 3
-    assert "python" in d["req_json"]["skills"]
+    assert {"python", "fastapi"} <= {s.lower() for s in d["req_json"]["skills"]}
 
     assert client.get("/api/jds/999999").status_code == 404
 

@@ -23,6 +23,9 @@ npm-debug.log*
 *.db
 *.sqlite3
 *.npy
+*.npz
+db/resume_ids.json
+backend/models/
 logs/
 *.log
 
