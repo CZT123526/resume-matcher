@@ -40,3 +40,33 @@ def test_schemas_importable():
     assert t.top_k == 10
     assert ResumeDetail(resume_id=1, file_name="a.pdf", parse_status="done",
                         created_at="2026-10-10").raw_text is None
+
+
+def test_svc_contracts_all_defined():
+    """服务契约 S01–S11 必须全部存在且可调用（防 stub 被误删、防依赖地雷）"""
+    import app.svc.contracts as contracts
+
+    expected = [
+        "parse_document", "extract_entities_bert", "train_ner",
+        "build_jd_requirements", "embed_texts", "cosine_rank", "compute_evidence",
+        "tfidf_baseline", "deepseek_zeroshot", "evaluate", "generate_report",
+    ]
+    for name in expected:
+        fn = getattr(contracts, name, None)
+        assert callable(fn), f"服务契约 {name} 缺失"
+
+
+def test_validation_error_returns_e4001_with_detail():
+    """参数校验失败 → 400 + E4001，message 带字段明细（接口未实现前用临时路由验证处理器）"""
+    from app.common.response import ok
+    from app.schemas import MatchTaskCreate
+
+    @app.post("/validation-test")
+    def vt(task: MatchTaskCreate):
+        return ok(task.model_dump())
+
+    r = client.post("/validation-test", json={"jd_id": 1, "top_k": 999})
+    assert r.status_code == 400
+    body = r.json()
+    assert body["code"] == "E4001"
+    assert "top_k" in body["message"]

@@ -92,6 +92,14 @@ Query：`page=1`、`page_size=20`、`parse_status`（可选过滤）。
 
 失败：E4041（id 不存在）。
 
+### DELETE /api/resumes/{id} `200`（P1）
+
+删除简历及其关联实体；若已生成向量缓存，标记缓存失效（下次任务前重建）。
+
+`data`：`{"resume_id": int, "deleted": true}`
+
+失败：E4041（id 不存在）。
+
 ---
 
 ## 2. JD 模块（M02）
@@ -130,7 +138,7 @@ Body：`{"jd_id": int, "top_k": int=10, 1..50}`
 
 `data`：`{"task_id": int, "status": "pending"}`
 
-### GET /api/match-tasks/{id} `200`（轮询，建议 1s 间隔）
+### GET /api/match-tasks/{id} `200`（轮询，2s 间隔）
 
 `data`：`{task_id, status, progress(0..100), error: string|null}`
 

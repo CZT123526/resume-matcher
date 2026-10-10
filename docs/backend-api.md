@@ -10,7 +10,8 @@
 - Base URL：`http://127.0.0.1:8000`；前端经 Vite 代理以 `/api` 前缀访问
 - 登录：当前版本全部接口**不需要登录**（users 表预留）
 - 成功响应统一包裹：`{"code": 0, "message": "ok", "data": {...}}`
-- 失败响应：HTTP 状态码 + `{"code": "E####", "message": "错误说明", "data": null}`
+- 失败响应：HTTP 状态码 + `{"code": "E####", "message": "错误说明", "data": null}`；参数错误时 message 附带字段明细
+- 时间格式：统一 ISO 8601（`T` 分隔），如 `2026-10-10T15:00:00`
 
 ### 错误码表
 
@@ -48,7 +49,7 @@
 - 响应 `200`：
 ```json
 {"code": 0, "message": "ok", "data": {"total": 2, "items": [
-  {"resume_id": 1, "file_name": "张三.pdf", "parse_status": "done", "created_at": "2026-10-10 15:00:00"}
+  {"resume_id": 1, "file_name": "张三.pdf", "parse_status": "done", "created_at": "2026-10-10T15:00:00"}
 ]}}
 ```
 
@@ -63,7 +64,7 @@
     {"field_key": "degree", "field_value": "本科", "source": "bert"},
     {"field_key": "skill", "field_value": "Python", "source": "bert"}
   ],
-  "created_at": "2026-10-10 15:00:00"
+  "created_at": "2026-10-10T15:00:00"
 }}
 ```
 
@@ -86,7 +87,7 @@
 > 说明：`content` 原文入库；结构化要求（学历/年限/技能列表）由规则+NER 离线抽取写入 `req_json`，前端无需提交。
 
 ### GET /api/jds ｜无需登录
-- 响应 `200`：`{"code": 0, "message": "ok", "data": {"items": [{"jd_id": 1, "title": "Python后端工程师", "created_at": "..."}]}}`
+- 响应 `200`：`{"code": 0, "message": "ok", "data": {"total": 1, "items": [{"jd_id": 1, "title": "Python后端工程师", "created_at": "2026-10-10T15:00:00"}]}}`
 
 ### GET /api/jds/{id} ｜无需登录
 - 响应 `200`：含 `content` 与 `req_json`（结构化要求对象）
@@ -114,14 +115,14 @@
 > status：`pending → running → done | failed`；progress 为 0–100
 
 ### GET /api/match-tasks/{id}/results ｜无需登录
-- 响应 `200`（任务 done 后有效）：
+- 响应 `200`（任务 done 后有效；任务未完成时调用返回 `409 E4091`）：
 ```json
 {"code": 0, "message": "ok", "data": {"task_id": 1, "jd_title": "Python后端工程师", "items": [
   {"rank": 1, "resume_id": 1, "candidate_name": "张三", "score": 0.87,
-   "evidence": ["技能重叠：Python/FastAPI 2/2", "学历满足：本科 ✓", "经验相近：3年/3年 ✓"]}
+   "evidence": ["技能重叠：Python/FastAPI (2/2)", "学历满足：硕士≥本科", "经验满足：5年≥3年"]}
 ]}}
 ```
-> score 为语义相似度（0–1）；evidence 由规则对比 `req_json` 与简历实体生成，可解释、可复核。
+> score 为语义相似度（0–1，4位小数）；evidence 文案格式定稿见 [算法设计.md](算法设计.md) §4（全角冒号，前端原样展示）。
 
 ---
 

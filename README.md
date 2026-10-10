@@ -65,9 +65,10 @@ npm run dev
 ## 目录结构
 
 ```
-├── backend/    FastAPI 后端（app/api 接口层、app/svc 服务层、tools 离线评测、tests 单测）
+├── backend/    FastAPI 后端（app/api 接口层、app/schemas 数据契约、app/svc 服务层、
+│               app/core 异常体系、tools 离线评测、tests 单测）
 ├── frontend/   Vite+React 前端
-├── docs/       契约与状态表（模块划分/backend-api/technical/test-cases/status四表）
+├── docs/       图纸（算法设计/api-schemas/开发规范/backend-api/technical）+ status 四表
 ├── db/         schema.sql（唯一数据源）+ 运行期数据（不入库）
 ├── .env.example  环境变量模板（真实密钥只放 backend/.env，永不提交）
 └── README.md
@@ -90,6 +91,9 @@ npm run dev
 |---|---|
 | [docs/模块划分文档.md](docs/模块划分文档.md) | 模块编号、接口归属、优先级、认领 |
 | [docs/backend-api.md](docs/backend-api.md) | API 契约（唯一准绳） |
+| [docs/api-schemas.md](docs/api-schemas.md) | 接口字段级规格（联调细节以它为准） |
+| [docs/算法设计.md](docs/算法设计.md) | 抽取Schema/NER/匹配/证据链/评测协议 |
+| [docs/开发规范.md](docs/开发规范.md) | 分层规则、PR模板、mock方案、DoD、性能预期 |
 | [docs/status/](docs/status/) | api/svc/b-int/modules 四张状态表 |
 | [docs/technical.md](docs/technical.md) | 架构决策、数据库设计、模型接入要点 |
 | [docs/test-cases.md](docs/test-cases.md) | 测试用例、冒烟步骤、零API专项检查 |

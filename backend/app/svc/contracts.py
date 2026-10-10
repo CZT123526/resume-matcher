@@ -20,7 +20,7 @@ def parse_document(file_bytes: bytes, filename: str) -> dict[str, Any]:
     """S01 解析简历文件为纯文本。
 
     入参: file_bytes 文件二进制; filename 原始文件名（判断扩展名）。
-    出参: {"text": str, "pages": int}
+    出参: {"text": str} 纯文本（页数等元信息无消费方，不出契约）。
     异常: AppError(E4002) 扩展名不支持; AppError(E4001) 文件损坏/无法解析。
     实现: svc/parsing.py（M01）
     """

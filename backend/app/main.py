@@ -27,10 +27,16 @@ async def app_error_handler(request: Request, exc: AppError):
 
 @app.exception_handler(RequestValidationError)
 async def validation_error_handler(request: Request, exc: RequestValidationError):
-    """参数校验失败：FastAPI 默认 422，按契约统一为 400 + E4001"""
+    """参数校验失败：FastAPI 默认 422，按契约统一为 400 + E4001；
+    message 附带字段级明细（如 "body.top_k: Input should be less than or equal to 50"）"""
+    detail = "; ".join(
+        ".".join(str(loc) for loc in err["loc"]) + ": " + err["msg"]
+        for err in exc.errors()
+    )
+    message = "参数错误" + (f": {detail}" if detail else "")
     return JSONResponse(
         status_code=HTTP_STATUS[ErrorCode.BAD_PARAM],
-        content={"code": ErrorCode.BAD_PARAM.value, "message": "参数错误", "data": None},
+        content={"code": ErrorCode.BAD_PARAM.value, "message": message, "data": None},
     )
 
 
