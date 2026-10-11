@@ -29,7 +29,7 @@ export default function Jds() {
     setMsg('')
     try {
       const data = await createJd(title.trim(), content.trim())
-      setMsg(`已创建 JD #${data.jd_id}，结构化要求由系统自动抽取`)
+      setMsg(`已创建 JD ${data.jd_id}，结构化要求由系统自动抽取`)
       setTitle('')
       setContent('')
       await refresh()

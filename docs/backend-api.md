@@ -38,7 +38,8 @@
 
 ### POST /api/resumes/upload ｜无需登录
 上传简历，后台异步解析（BERT NER 抽取），返回 resume_id 供轮询。
-- 请求：`multipart/form-data`，字段 `file`（PDF/DOCX，≤10MB）
+- 请求：`multipart/form-data`，字段 `file`（PDF/DOCX，≤10MB）；批量上传由前端多选后逐份调用本接口
+- 原件同步保存至服务端 `db/uploads/{resume_id}.{ext}`（不入 git），供下方 `GET /{id}/file` 查看；删除简历时原件一并清理
 - 响应 `202`：
 ```json
 {"code": 0, "message": "ok", "data": {"resume_id": 1, "file_name": "张三.pdf", "parse_status": "pending"}}
@@ -70,6 +71,11 @@
 
 ### DELETE /api/resumes/{id} ｜无需登录 ｜P1
 - 响应 `200`：`{"code": 0, "message": "ok", "data": {"resume_id": 1, "deleted": true}}`
+
+### GET /api/resumes/{id}/file ｜无需登录
+下载/查看简历原件（API-13）。前端"点击文件名/查看原件"即打开本接口。
+- 响应 `200`：文件流，`Content-Disposition` 携带上传时原文件名（PDF 浏览器内预览，DOCX 触发下载）
+- 404 `E4041`：resume_id 无效，或原件文件已缺失（早于原件落盘功能的历史数据）
 
 ---
 

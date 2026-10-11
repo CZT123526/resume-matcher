@@ -73,7 +73,7 @@ export default function Match() {
         <div className="row">
           <select value={jdId} onChange={(e) => setJdId(e.target.value)}>
             {jds.length === 0 && <option value="">（暂无 JD，请先创建）</option>}
-            {jds.map((j) => <option key={j.jd_id} value={j.jd_id}>#{j.jd_id} {j.title}</option>)}
+            {jds.map((j) => <option key={j.jd_id} value={j.jd_id}>{j.jd_id} {j.title}</option>)}
           </select>
           <label className="muted">召回人数</label>
           <input type="number" min={1} max={50} value={topK}
@@ -83,7 +83,7 @@ export default function Match() {
         {msg && <div className="error-text" style={{ marginTop: 8 }}>{msg}</div>}
         {task && task.status !== 'done' && (
           <div style={{ marginTop: 12 }}>
-            <div className="muted">任务 #{task.task_id} · {task.status} · {task.progress}%</div>
+            <div className="muted">任务 {task.task_id} · {task.status} · {task.progress}%</div>
             <div className="progress-line"><div style={{ width: `${task.progress}%` }} /></div>
           </div>
         )}
@@ -96,10 +96,10 @@ export default function Match() {
             ? <div className="empty">没有候选人可匹配，先去上传简历</div>
             : results.items.map((item) => (
               <div key={item.rank} className="rank-card">
-                <div className={`rank-num ${item.rank === 1 ? 'top' : ''}`}>#{item.rank}</div>
+                <div className={`rank-num ${item.rank === 1 ? 'top' : ''}`}>{item.rank}</div>
                 <div className="candidate">
                   <div className="name">{item.candidate_name}</div>
-                  <div className="meta">简历 #{item.resume_id}</div>
+                  <div className="meta">简历 {item.resume_id}</div>
                   <div style={{ marginTop: 8 }}>
                     {item.evidence.map((e, i) => (
                       <span key={i} className={`chip ${chipKind(e)}`}>{e}</span>
