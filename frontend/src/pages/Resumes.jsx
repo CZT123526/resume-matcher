@@ -131,7 +131,7 @@ export default function Resumes() {
   }
 
   const q = detail?.quality || {}
-  const lowQuality = detail.parse_status === 'done' && (!q.like_resume || q.entity_count === 0)
+  const lowQuality = detail?.parse_status === 'done' && (!q.like_resume || q.entity_count === 0)
 
   return (
     <div>
