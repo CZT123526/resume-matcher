@@ -13,6 +13,12 @@ import os
 import time
 from pathlib import Path
 
+# 显式加载 backend/.env（key 只放这里，已被 .gitignore 排除）；
+# 不依赖任何 app.* 的间接 import 顺序
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).resolve().parents[2] / ".env")
+
 CACHE_FILE = Path(__file__).with_name("deepseek_cache.jsonl")
 DEFAULT_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")  # 官方别名，恒指向最新版
 API_URL = "https://api.deepseek.com/chat/completions"
