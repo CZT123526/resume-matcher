@@ -75,3 +75,34 @@ def test_normalize_value_strips_cjk_inner_spaces():
     assert normalize_value("title", "后 端 开 发 工 程 师") == "后端开发工程师"
     assert normalize_value("company", "字 节 跳 动 科 技 有 限 公 司") == "字节跳动科技有限公司"
     assert normalize_value("name", "Jack Chen") is None  # 姓名字段本就只收中文（既有校验，非本次改动）
+
+
+def test_bert_pipeline_concurrent_lazy_load(monkeypatch):
+    """回归：并发上传的多个后台解析同时触发懒加载，慢加载期间其余线程
+    不得误判"无模型"而静默走规则（T28 实测 12 份并发仅 1 份走到 BERT）"""
+    import threading
+    import time
+
+    from app.svc import ner
+
+    calls = {"n": 0}
+
+    def slow_loader():
+        calls["n"] += 1
+        time.sleep(0.2)  # 模拟模型加载数秒的窗口期
+        return "PIPELINE"
+
+    monkeypatch.setattr(ner, "_model_checked", False)
+    monkeypatch.setattr(ner, "_bert_pipeline", None)
+    monkeypatch.setattr(ner, "_load_pipeline", slow_loader)
+
+    results: list = []
+    threads = [threading.Thread(target=lambda: results.append(ner._get_bert_pipeline()))
+               for _ in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert calls["n"] == 1                      # 只加载一次
+    assert results == ["PIPELINE"] * 8          # 所有等待者都拿到模型，无人降级规则

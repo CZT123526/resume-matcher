@@ -7,8 +7,8 @@
 
 | 编号 | 名称 | 说明 | 负责人 | 状态 | 备注 |
 |---|---|---|---|---|---|
-| S01 | parse_document(file_bytes, filename) -> {"text": str} | PDF/DOCX 提取纯文本；不支持的类型抛 E4002 | 成员A | 已完成 | `744d0dd`；pypdf+python-docx(含表格)，扫描件E4001可读提示 |
-| S02 | extract_entities_bert(text) -> list[{field_key, field_value, source}] | 本地BERT NER推理（7类实体见算法设计§1），运行时唯一抽取来源 | 成员A | 已完成 | `744d0dd` 调度层+规则兜底；`32901d8` 字段级合并(模型无标签字段由规则补) |
+| S01 | parse_document(file_bytes, filename) -> {"text": str} | PDF/DOCX 提取纯文本；不支持的类型抛 E4002 | 成员A | 已完成 | `744d0dd`；pypdf+python-docx(含表格)，扫描件E4001可读提示；`95f1591` 2026-10-11 增文本框(txbxContent)解析与双份存储去重 |
+| S02 | extract_entities_bert(text) -> list[{field_key, field_value, source}] | 本地BERT NER推理（7类实体见算法设计§1），运行时唯一抽取来源 | 成员A | 已完成 | `744d0dd` 调度层+规则兜底；`32901d8` 字段级合并(模型无标签字段由规则补)；`95f1591` 2026-10-11 并发懒加载竞态修复(双检锁) |
 | S03 | train_ner(data_dir, output_dir) -> {f1, precision, recall} | NER微调：简历领域标注集(主)+CLUENER(辅)，Colab执行 | 成员A | 进行中 | `32901d8` 物料全就绪(数据集管道实跑通过+训练脚本+指标)；训练执行待Colab(待拍板#2) |
 | S04 | build_jd_requirements(jd_text) -> {degree, min_years, skills} | 规则+NER 抽取JD结构化要求（学历/年限/技能列表） | 成员B | 已完成 | `2698613`；区间取下限/中文数字/展示大小写 |
 | S05 | embed_texts(texts) -> np.ndarray(归一化) | BERT 语义编码（JD与简历文本向量化，批量CPU推理） | 成员B | 已完成 | `2698613`；svc/embedding.py get_encoder，BERT主路+TF-IDF降级 |
