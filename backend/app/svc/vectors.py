@@ -5,11 +5,14 @@
 - resume_ids.json  {"order": [resume_id...], "hashes": {id: md5(raw_text)}}
 - tfidf_state.npz  降级模式的词表+IDF（保证建库/查询同一特征空间）
 
-重建规则（算法设计 §3.3）：任一 done 简历的内容哈希与缓存不一致 → 全量重建。
+重建规则（算法设计 §3.3）：任一 done 简历的内容哈希与缓存不一致 → 全量重建；
+编码器身份变化（如 BERT_MODEL_PATH 指向领域微调版）同样触发重建——否则查询向量与
+库向量不同源，余弦分数会静默错乱（T25 教训）。
 """
 import hashlib
 import json
 import logging
+import os
 import threading
 from pathlib import Path
 
@@ -67,9 +70,17 @@ def structured_text(resume: dict, max_len: int = 1000) -> str:
 
 
 def _load_meta() -> dict:
-    if IDS_FILE.exists():
-        return json.loads(IDS_FILE.read_text(encoding="utf-8"))
-    return {"order": [], "hashes": {}}
+    meta = json.loads(IDS_FILE.read_text(encoding="utf-8")) if IDS_FILE.exists() else {"order": [], "hashes": {}}
+    meta.setdefault("encoder", "")  # 旧缓存无此字段 → 指纹不匹配触发重建
+    return meta
+
+
+def _encoder_fingerprint() -> str:
+    """编码器身份指纹：缓存跨编码器不可复用（换模型必须重建，保证查询/文档同源）"""
+    from app.svc.embedding import _BERT_MODEL
+
+    kind = "tfidf" if os.getenv("FORCE_TFIDF") == "1" else "bert"
+    return f"{kind}:{_BERT_MODEL}"
 
 
 def ensure_cache(progress_cb=None) -> tuple[np.ndarray, list[int]]:
@@ -83,14 +94,15 @@ def ensure_cache(progress_cb=None) -> tuple[np.ndarray, list[int]]:
         for rid, item in data.items()
     }
     meta = _load_meta()
+    fp = _encoder_fingerprint()
 
-    if meta["order"] and meta["hashes"] == hashes and VEC_FILE.exists():
+    if meta["order"] and meta["hashes"] == hashes and meta["encoder"] == fp and VEC_FILE.exists():
         return np.load(VEC_FILE), meta["order"]
 
     with _CACHE_LOCK:
         # 双重检查：等锁期间可能已被其他任务重建完成
         meta = _load_meta()
-        if meta["order"] and meta["hashes"] == hashes and VEC_FILE.exists():
+        if meta["order"] and meta["hashes"] == hashes and meta["encoder"] == fp and VEC_FILE.exists():
             return np.load(VEC_FILE), meta["order"]
 
         logger.info("向量缓存失效（简历 %d 份），开始全量重建", len(data))
@@ -113,12 +125,12 @@ def ensure_cache(progress_cb=None) -> tuple[np.ndarray, list[int]]:
 
         np.save(VEC_FILE, matrix)
         IDS_FILE.write_text(
-            json.dumps({"order": order, "hashes": hashes}, ensure_ascii=False), encoding="utf-8"
+            json.dumps({"order": order, "hashes": hashes, "encoder": fp}, ensure_ascii=False), encoding="utf-8"
         )
         if progress_cb:
             progress_cb(60)
         logger.info(
-            "向量缓存重建完成：%d × %d 维（编码器=%s）", matrix.shape[0], matrix.shape[1], encoder.kind
+            "向量缓存重建完成：%d × %d 维（编码器=%s 指纹=%s）", matrix.shape[0], matrix.shape[1], encoder.kind, fp
         )
         return matrix, order
 
