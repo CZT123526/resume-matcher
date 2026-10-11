@@ -58,6 +58,8 @@ def normalize_value(field_key: str, value: str) -> str | None:
     value = (value or "").strip()
     if not value:
         return None
+    # BERT 字符级聚合会把汉字按"词"拼接、字间引入空格（"张 伟"）——CJK 邻接处去空格
+    value = re.sub(r"(?<=[一-鿿])\s+(?=[一-鿿])", "", value)
     if field_key == "degree":
         v = value.lower()
         for canonical, aliases in _DEGREE_PATTERNS:

@@ -83,3 +83,14 @@ def test_delete_then_404():
     assert r.status_code == 200 and r.json()["data"]["deleted"] is True
     assert client.get(f"/api/resumes/{rid}").status_code == 404
     assert client.delete(f"/api/resumes/{rid}").status_code == 404
+
+
+def test_delete_resume_referenced_by_match_results():
+    """回归：简历被匹配结果引用时也可删（match_results.resume_id 级联，schema 漏标曾致 500）"""
+    rid = client.post("/api/resumes/upload", files={"file": ("r.docx", _make_docx(RESUME_TEXT), "application/octet-stream")}).json()["data"]["resume_id"]
+    jid = client.post("/api/jds", json={"title": "Python后端工程师", "content": "要求：Python经验。"}).json()["data"]["jd_id"]
+    tid = client.post("/api/match-tasks", json={"jd_id": jid, "top_k": 5}).json()["data"]["task_id"]
+    st = client.get(f"/api/match-tasks/{tid}").json()["data"]["status"]
+    assert st == "done"  # TestClient 同步执行后台任务
+    r = client.delete(f"/api/resumes/{rid}")
+    assert r.status_code == 200 and r.json()["data"]["deleted"] is True

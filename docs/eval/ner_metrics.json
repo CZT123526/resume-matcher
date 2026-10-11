@@ -1,0 +1,15 @@
+{
+  "version": "v1",
+  "f1": 0.953,
+  "precision": 0.9413,
+  "recall": 0.965,
+  "per_field_f1": {
+    "company": 0.9327,
+    "degree": 0.9366,
+    "name": 0.9955,
+    "title": 0.9469
+  },
+  "train_samples": 3821,
+  "trained_at": "2026-10-11T11:08:23",
+  "base_model": "bert-base-chinese"
+}

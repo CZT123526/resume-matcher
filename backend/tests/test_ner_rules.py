@@ -57,3 +57,21 @@ def test_name_requires_explicit_field():
     """没有"姓名："行时不猜名字（宁缺勿错）"""
     ents = extract_entities("张三是一位工程师")
     assert all(e["field_key"] != "name" for e in ents)
+
+
+def test_ner_model_dir_points_to_backend_models():
+    """回归：NER_MODEL_DIR 必须指向 backend/models/ner（曾错指 app/models 导致微调模型永不生效）"""
+    from app.svc.ner import METRICS_FILE, NER_MODEL_DIR
+
+    assert NER_MODEL_DIR.parent.name == "models" and NER_MODEL_DIR.parent.parent.name == "backend"
+    assert METRICS_FILE == NER_MODEL_DIR / "metrics.json"
+
+
+def test_normalize_value_strips_cjk_inner_spaces():
+    """回归：BERT 字符级聚合产生字间空格（"张 伟"/"后 端 开 发"），CJK 邻接处必须去空格"""
+    from app.svc.ner_rules import normalize_value
+
+    assert normalize_value("name", "张 伟") == "张伟"
+    assert normalize_value("title", "后 端 开 发 工 程 师") == "后端开发工程师"
+    assert normalize_value("company", "字 节 跳 动 科 技 有 限 公 司") == "字节跳动科技有限公司"
+    assert normalize_value("name", "Jack Chen") is None  # 姓名字段本就只收中文（既有校验，非本次改动）

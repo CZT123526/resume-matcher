@@ -55,7 +55,7 @@ CREATE TABLE IF NOT EXISTS match_tasks (
 CREATE TABLE IF NOT EXISTS match_results (
     id            INTEGER PRIMARY KEY AUTOINCREMENT, -- 记录ID
     task_id       INTEGER NOT NULL REFERENCES match_tasks(id) ON DELETE CASCADE, -- 所属任务
-    resume_id     INTEGER NOT NULL REFERENCES resumes(id),     -- 候选人简历
+    resume_id     INTEGER NOT NULL REFERENCES resumes(id) ON DELETE CASCADE, -- 候选人简历（随简历级联删除）
     rank          INTEGER NOT NULL,                  -- 排名（1=最匹配）
     score         REAL    NOT NULL,                  -- 归一化语义相似度 0~1（4位小数），见 docs/算法设计.md §3
     evidence_json TEXT    NOT NULL DEFAULT '[]',     -- 证据链JSON数组，文案格式见 docs/算法设计.md §4
