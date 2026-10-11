@@ -18,3 +18,4 @@
 | API-10 | GET /api/match-tasks/{id}/results | 匹配结果(排名+证据) | 成员B | 已完成 | `2698613` 2026-10-10；未完成409 E4091 |
 | API-11 | GET /api/reports/{task_id}/export | PDF报告导出 | 成员A | 已完成 | `1e3f055` 2026-10-10；内嵌中文字体，演示样张 docs/eval/report_demo_task1.pdf |
 | API-12 | GET /api/model/info | 模型版本与F1指标 | 成员A | 已完成 | `2698613` 2026-10-10；无训练产物时如实返回v0-rules |
+| API-13 | GET /api/resumes/{id}/file | 简历原件下载（上传落盘） | 成员A | 已完成 | `f8ae9c6` 2026-10-11；原件存 db/uploads/{id}.{ext} 不入 git，删除简历级联清理，缺失历史数据 404 兜底 |
