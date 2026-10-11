@@ -36,8 +36,14 @@ class _BertEncoder:
         import torch
 
         self._torch = torch
-        self.tokenizer = AutoTokenizer.from_pretrained(_BERT_MODEL)
-        self.model = AutoModel.from_pretrained(_BERT_MODEL)
+        # 权重已在本地缓存时强制离线加载——运行时本就全本地，联网探测
+        # 在无代理环境会拖到超时（曾致误降级 TF-IDF）；缓存未命中才走网络下载
+        try:
+            self.tokenizer = AutoTokenizer.from_pretrained(_BERT_MODEL, local_files_only=True)
+            self.model = AutoModel.from_pretrained(_BERT_MODEL, local_files_only=True)
+        except OSError:
+            self.tokenizer = AutoTokenizer.from_pretrained(_BERT_MODEL)
+            self.model = AutoModel.from_pretrained(_BERT_MODEL)
         self.model.eval()
 
     def encode(self, texts: list[str], batch_size: int = 16) -> np.ndarray:

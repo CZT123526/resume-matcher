@@ -1,25 +1,29 @@
 {
-  "n_pairs": 2,
-  "n_queries": 1,
-  "n_resumes": 3,
+  "n_pairs": 63,
+  "n_queries": 5,
+  "n_resumes": 15,
   "groups": {
     "BERT语义匹配": {
-      "ndcg@10": 1.0,
-      "p@5": 0.5,
-      "queries": 1,
+      "ndcg@10": 0.9358,
+      "p@5": 0.52,
+      "queries": 5,
       "encoder": "bert",
-      "rank_seconds": 0.036,
+      "rank_seconds": 0.641,
       "note": ""
     },
     "TF-IDF基线": {
       "ndcg@10": 1.0,
-      "p@5": 0.5,
-      "queries": 1,
-      "rank_seconds": 0.002
+      "p@5": 0.6,
+      "queries": 5,
+      "rank_seconds": 0.018
     },
     "DeepSeek零样本": {
-      "skipped": true,
-      "reason": "未配置 DEEPSEEK_API_KEY（见工作日志待拍板 #1）"
+      "ndcg@10": 1.0,
+      "p@5": 0.6,
+      "queries": 5,
+      "model": "deepseek-chat",
+      "failed_calls": 0,
+      "cost_note": "约 63 次调用（命中缓存不重复计费）"
     }
   }
 }
