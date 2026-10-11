@@ -21,6 +21,17 @@ def db_file() -> Path:
     return p if p.is_absolute() else (BACKEND_DIR / p).resolve()
 
 
+def upload_dir() -> Path:
+    """简历原件保存目录绝对路径（UPLOAD_DIR，规则同 DB_PATH），不存在则创建。
+
+    文件以 {resume_id}.{ext} 命名避免重名冲突，原文件名保存在 resumes.file_name。
+    """
+    p = Path(settings.UPLOAD_DIR)
+    d = p if p.is_absolute() else (BACKEND_DIR / p).resolve()
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
 def get_db() -> sqlite3.Connection:
     """新建连接（调用方负责 close）。SQLite 文件库，不做连接池。"""
     conn = sqlite3.connect(db_file(), timeout=10)

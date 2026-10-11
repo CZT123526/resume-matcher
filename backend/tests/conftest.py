@@ -9,6 +9,8 @@ import pytest
 
 _TEST_DB = os.path.join(tempfile.gettempdir(), "resume_matcher_test.db")
 os.environ["DB_PATH"] = _TEST_DB
+# 原件落盘同样隔离到临时目录，不污染 db/uploads/
+os.environ["UPLOAD_DIR"] = os.path.join(tempfile.gettempdir(), "resume_matcher_test_uploads")
 # 测试强制 TF-IDF 降级编码（不加载 BERT，秒级跑完）；BERT 主路另有手动冒烟
 os.environ["FORCE_TFIDF"] = "1"
 

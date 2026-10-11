@@ -94,3 +94,44 @@ def test_delete_resume_referenced_by_match_results():
     assert st == "done"  # TestClient 同步执行后台任务
     r = client.delete(f"/api/resumes/{rid}")
     assert r.status_code == 200 and r.json()["data"]["deleted"] is True
+
+
+def test_upload_saves_original_and_download():
+    """API-13：上传原件落盘，GET /file 拿回字节一致 + 原文件名（中文按 RFC 5987 百分号编码）"""
+    import urllib.parse
+
+    payload = _make_docx(RESUME_TEXT)
+    rid = client.post("/api/resumes/upload", files={"file": ("原件测试.docx", payload, "application/octet-stream")}).json()["data"]["resume_id"]
+
+    r = client.get(f"/api/resumes/{rid}/file")
+    assert r.status_code == 200
+    assert r.content == payload
+    cd = r.headers.get("content-disposition", "")
+    assert "attachment" in cd
+    assert "原件测试" in urllib.parse.unquote(cd)
+
+
+def test_download_file_unknown_id_404():
+    r = client.get("/api/resumes/999999/file")
+    assert r.status_code == 404 and r.json()["code"] == "E4041"
+
+
+def test_download_file_missing_on_disk():
+    """行存在但原件已缺失 → 404（覆盖早于落盘功能的历史数据）"""
+    from app.db import upload_dir
+
+    rid = client.post("/api/resumes/upload", files={"file": ("nofile.docx", _make_docx(RESUME_TEXT), "application/octet-stream")}).json()["data"]["resume_id"]
+    for f in upload_dir().glob(f"{rid}.*"):
+        f.unlink()
+
+    r = client.get(f"/api/resumes/{rid}/file")
+    assert r.status_code == 404 and r.json()["code"] == "E4041"
+
+
+def test_delete_removes_saved_file():
+    """删除简历时原件一并清理，之后 /file 404"""
+    rid = client.post("/api/resumes/upload", files={"file": ("tobedeleted.docx", _make_docx(RESUME_TEXT), "application/octet-stream")}).json()["data"]["resume_id"]
+    assert client.get(f"/api/resumes/{rid}/file").status_code == 200
+
+    client.delete(f"/api/resumes/{rid}")
+    assert client.get(f"/api/resumes/{rid}/file").status_code == 404

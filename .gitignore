@@ -26,6 +26,7 @@ npm-debug.log*
 *.npz
 db/resume_ids.json
 db/tfidf_state*
+db/uploads/
 backend/models/
 backend/tools/data/raw/
 backend/tools/data/ner_*.jsonl
