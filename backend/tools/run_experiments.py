@@ -104,6 +104,8 @@ def evaluate_group(ranking: dict[int, list[tuple[int, float]]], gold: list[dict]
 
 
 def main() -> int:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # Windows GBK 控制台打 ⚠ 会崩
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     gold = load_or_build_gold()
     if not gold:

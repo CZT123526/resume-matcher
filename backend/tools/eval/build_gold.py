@@ -81,6 +81,8 @@ def build(neg_ratio: int = 5, seed: int = 42) -> list[dict]:
 
 
 def main() -> int:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # Windows GBK 控制台打 ⚠ 会崩
     ap = argparse.ArgumentParser(description="构造金标准 gold.jsonl")
     ap.add_argument("--neg-ratio", type=int, default=5, help="负采样倍数（默认5，文档 §5）")
     args = ap.parse_args()

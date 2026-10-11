@@ -11,7 +11,7 @@ from app.svc import ner_rules
 
 logger = logging.getLogger(__name__)
 
-BACKEND_DIR = Path(__file__).resolve().parent.parent  # backend/
+BACKEND_DIR = Path(__file__).resolve().parents[2]  # app/svc/ner.py → backend/
 NER_MODEL_DIR = BACKEND_DIR / "models" / "ner"
 METRICS_FILE = NER_MODEL_DIR / "metrics.json"
 
