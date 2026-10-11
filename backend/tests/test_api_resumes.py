@@ -135,3 +135,55 @@ def test_delete_removes_saved_file():
 
     client.delete(f"/api/resumes/{rid}")
     assert client.get(f"/api/resumes/{rid}/file").status_code == 404
+
+
+def test_search_fulltext_and_short_keyword():
+    """API-15：FTS 中文子串检索 + <3字符 LIKE 降级 + 空白词 400"""
+    client.post("/api/resumes/upload", files={"file": ("搜索测试.docx", _make_docx("姓名：王五\n技能：区块链风控平台开发"), "application/octet-stream")})
+
+    r = client.get("/api/resumes/search", params={"q": "风控平台"})
+    assert r.status_code == 200
+    d = r.json()["data"]
+    assert d["total"] >= 1
+    hit = next(i for i in d["items"] if i["file_name"] == "搜索测试.docx")
+    assert "风控" in hit["snippet"]
+
+    r2 = client.get("/api/resumes/search", params={"q": "李四"})  # 2字 → LIKE 路径
+    assert r2.status_code == 200 and r2.json()["data"]["total"] >= 1
+
+    assert client.get("/api/resumes/search", params={"q": "   "}).status_code == 400
+
+
+def test_detail_quality_signal():
+    """T29：详情带 quality（像不像简历/实体数/正文字数）"""
+    rid = client.post("/api/resumes/upload", files={"file": ("质检.docx", _make_docx(RESUME_TEXT), "application/octet-stream")}).json()["data"]["resume_id"]
+    q = client.get(f"/api/resumes/{rid}").json()["data"]["quality"]
+    assert q["like_resume"] is True
+    assert q["entity_count"] > 0 and q["text_chars"] > 0
+
+
+def test_reparse_roundtrip():
+    """API-14：重解析走已落盘原件，实体重建后依旧可用；不存在/无原件 404"""
+    payload = _make_docx(RESUME_TEXT)
+    rid = client.post("/api/resumes/upload", files={"file": ("重解析.docx", payload, "application/octet-stream")}).json()["data"]["resume_id"]
+
+    r = client.post(f"/api/resumes/{rid}/reparse")
+    assert r.status_code == 202 and r.json()["data"]["parse_status"] == "pending"
+    d = client.get(f"/api/resumes/{rid}").json()["data"]  # TestClient 同步执行后台任务
+    assert d["parse_status"] == "done" and d["entities"]
+
+    assert client.post("/api/resumes/999999/reparse").status_code == 404
+
+
+def test_data_view():
+    """API-16：解析数据视图——全文/实体/匹配输入/向量预览全链路可见"""
+    rid = client.post("/api/resumes/upload", files={"file": ("数据视图.docx", _make_docx(RESUME_TEXT), "application/octet-stream")}).json()["data"]["resume_id"]
+    d = client.get(f"/api/resumes/{rid}/data").json()["data"]
+
+    assert d["stats"]["text_chars"] > 0 and d["stats"]["entity_count"] > 0
+    assert d["stats"]["bert_count"] + d["stats"]["rule_count"] == d["stats"]["entity_count"]
+    assert "李四" in d["raw_text"]
+    assert d["matching"]["structured_text"].strip()
+    # 维度不做下限断言：测试环境为未拟合 TF-IDF 降级（dim=0），dev 为 BERT 768 维
+    assert d["matching"]["vector_dim"] >= 0
+    assert 0 <= len(d["matching"]["vector_preview"]) <= 8

@@ -13,7 +13,7 @@ from fastapi.responses import JSONResponse
 
 from app.config import settings
 from app.core.errors import AppError, ErrorCode, HTTP_STATUS
-from app.db import init_db
+from app.db import backfill_search_index, init_db
 from app.api import jds, match, reports, resumes
 
 
@@ -22,6 +22,7 @@ async def lifespan(_app: FastAPI):
     """启动时自动建表（schema.sql 全 IF NOT EXISTS，幂等）；
     并把上次服务中断遗留的进行中任务标记失败（BackgroundTasks 不跨重启）"""
     init_db()
+    backfill_search_index()  # 全文索引幂等回填（T29）
     conn = None
     from app.db import get_db
 

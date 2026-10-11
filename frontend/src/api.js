@@ -35,6 +35,11 @@ export const getResume = (id) => request(`/resumes/${id}`)
 export const deleteResume = (id) => request(`/resumes/${id}`, { method: 'DELETE' })
 // 简历原件地址（浏览器直接打开：PDF 预览 / DOCX 下载）
 export const resumeFileUrl = (id) => `/api/resumes/${id}/file`
+// 全文搜索 / 重解析 / 解析数据视图（T29）
+export const searchResumes = (q, limit = 20) =>
+  request(`/resumes/search?q=${encodeURIComponent(q)}&limit=${limit}`)
+export const reparseResume = (id) => request(`/resumes/${id}/reparse`, { method: 'POST' })
+export const getResumeData = (id) => request(`/resumes/${id}/data`)
 
 // ---------- JD ----------
 export const createJd = (title, content) => request('/jds', jsonInit('POST', { title, content }))

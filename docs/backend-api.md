@@ -58,19 +58,49 @@
 - 响应 `200`：
 ```json
 {"code": 0, "message": "ok", "data": {
-  "resume_id": 1, "file_name": "张三.pdf", "parse_status": "done",
+  "resume_id": 1, "file_name": "张三.pdf", "parse_status": "done", "parse_error": null,
   "raw_text": "（前500字预览……）",
   "entities": [
     {"field_key": "name", "field_value": "张三", "source": "bert"},
     {"field_key": "degree", "field_value": "本科", "source": "bert"},
     {"field_key": "skill", "field_value": "Python", "source": "bert"}
   ],
+  "quality": {"like_resume": true, "entity_count": 12, "text_chars": 897},
   "created_at": "2026-10-10T15:00:00"
+}}
+```
+> `quality`（T29）：解析质量信号。`done` 但 `like_resume=false` 或 `entity_count=0` 时，前端提示"疑似扫描件/低质量解析"，不阻断流程。
+
+### POST /api/resumes/{id}/reparse ｜无需登录 ｜T29
+重新解析（API-14）：用已落盘原件重跑解析流水线，实体与全文索引重建；失败简历或更换模型后可手动触发。
+- 响应 `202`：`{"code": 0, "message": "ok", "data": {"resume_id": 1, "parse_status": "pending"}}`
+- 404 `E4041`：简历不存在，或原件文件缺失（无法重解析）
+
+### GET /api/resumes/search?q=关键词&limit=20 ｜无需登录 ｜T29
+全文搜索（API-15）：FTS5 trigram 中文子串检索（≥3字符）；1-2 字符自动降级 LIKE。命中片段 `snippet` 带「」高亮。
+- 响应 `200`：`{"code": 0, "message": "ok", "data": {"total": 1, "items": [{"resume_id": 1, "file_name": "张三.pdf", "parse_status": "done", "created_at": "…", "snippet": "…「搜索词」…"}]}}`
+- 400 `E4001`：q 为空白
+
+### GET /api/resumes/{id}/data ｜无需登录 ｜T29
+解析数据视图（API-16）：返回这份简历"被读成的数据"——解析全文、实体明细（含来源）、匹配输入 structured_text、向量预览（前8维+维度+模长，实时编码仅供查看，不影响匹配缓存）。
+- 响应 `200`：
+```json
+{"code": 0, "message": "ok", "data": {
+  "resume_id": 1, "file_name": "张三.pdf", "parse_status": "done", "parse_error": null,
+  "stats": {"text_chars": 897, "entity_count": 12, "bert_count": 5, "rule_count": 7},
+  "entities": [{"field_key": "name", "field_value": "张三", "source": "bert"}],
+  "raw_text": "（解析全文）",
+  "matching": {"structured_text": "技能：Python 职位：后端开发工程师 …",
+               "vector_dim": 768, "vector_norm": 5.1234, "vector_preview": [0.01, -0.02],
+               "note": "向量仅展示前8维；匹配实际使用完整向量与缓存"}
 }}
 ```
 
 ### DELETE /api/resumes/{id} ｜无需登录 ｜P1
 - 响应 `200`：`{"code": 0, "message": "ok", "data": {"resume_id": 1, "deleted": true}}`
+- 级联清除：实体、原件文件、全文索引（T29）
+
+> 解析并发（T29）：后台上传解析固定 **2 路并行**（env `PARSE_CONCURRENCY` 可调），其余任务在 pending 排队，防止批量上传挤占 CPU。
 
 ### GET /api/resumes/{id}/file ｜无需登录
 下载/查看简历原件（API-13）。前端"点击文件名/查看原件"即打开本接口。
