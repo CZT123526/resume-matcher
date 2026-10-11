@@ -71,3 +71,11 @@ CREATE TABLE IF NOT EXISTS users (
     role          TEXT    NOT NULL DEFAULT 'hr',     -- 角色：hr/admin
     created_at    TEXT    NOT NULL DEFAULT (datetime('now','localtime')) -- 创建时间
 );
+
+-- 简历全文检索表（T29：FTS5 trigram，支持中文子串；独立于 resumes 表，解析完成时同步写入）
+CREATE VIRTUAL TABLE IF NOT EXISTS resume_search USING fts5(
+    resume_id UNINDEXED,        -- 关联 resumes.id（无外键，手动维护）
+    file_name,                  -- 文件名（可检索）
+    raw_text,                   -- 简历全文（可检索）
+    tokenize = 'trigram'        -- 三元组分词：中文无空格分词，trigram 才支持任意子串匹配（<3字符走接口层 LIKE 降级）
+);

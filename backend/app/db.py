@@ -60,3 +60,22 @@ def init_db(path: Optional[Path] = None) -> None:
 def rows_to_dicts(rows: list) -> list[dict[str, Any]]:
     """sqlite3.Row 列表 → 字典列表（组装响应体用）"""
     return [dict(r) for r in rows]
+
+
+def backfill_search_index() -> int:
+    """把已有解析完成的简历补进全文索引（幂等：只补缺失的）。返回本次补的条数。
+
+    增量同步点在解析流水线（done 时写入）与删除接口（级联清除）；本函数只管存量回填。
+    """
+    conn = get_db()
+    try:
+        cur = conn.execute(
+            "INSERT INTO resume_search(resume_id, file_name, raw_text) "
+            "SELECT id, file_name, raw_text FROM resumes "
+            "WHERE parse_status='done' AND raw_text IS NOT NULL "
+            "AND id NOT IN (SELECT CAST(resume_id AS INTEGER) FROM resume_search)"
+        )
+        conn.commit()
+        return cur.rowcount
+    finally:
+        conn.close()

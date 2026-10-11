@@ -88,6 +88,16 @@ tr.clickable:hover { background: var(--gray-weak); }
 .muted { color: var(--muted); font-size: 13px; }
 .file-link { color: var(--primary); cursor: pointer; }
 .file-link:hover { text-decoration: underline; }
+.warn-text {
+  color: #a16207; background: #fef9c3; border-radius: 8px;
+  padding: 8px 12px; font-size: 13px; margin-bottom: 8px;
+}
+.mono-text {
+  font-family: Consolas, "Courier New", monospace; font-size: 13px;
+  background: var(--gray-weak); border-radius: 8px; padding: 10px 12px;
+  white-space: pre-wrap; word-break: break-all;
+}
+.snippet-cell { max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .error-text { color: var(--red); font-size: 14px; }
 .progress-line { background: var(--gray-weak); border-radius: 999px; height: 10px; overflow: hidden; margin: 8px 0; }
 .progress-line > div { background: var(--primary); height: 100%; transition: width .4s; }
