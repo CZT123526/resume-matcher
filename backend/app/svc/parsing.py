@@ -45,14 +45,27 @@ def _parse_pdf(raw: bytes) -> str:
 def _parse_docx(raw: bytes) -> str:
     try:
         import docx
+        from docx.oxml.ns import qn
 
         document = docx.Document(BytesIO(raw))
-        parts = [p.text for p in document.paragraphs]
+        parts = [p.text for p in document.paragraphs if p.text.strip()]
         # 简历常用表格排版，表格单元格文本同样计入
         for table in document.tables:
             for row in table.rows:
                 for cell in row.cells:
-                    parts.append(cell.text)
+                    if cell.text.strip():
+                        parts.append(cell.text)
+        # 设计版简历的内容常整块放在文本框（txbxContent）里，普通段落读不到；
+        # Word 兼容存储会把同一文本框写两遍（mc:Choice + mc:Fallback），按行去重
+        seen: set[str] = set()
+        for box in document.element.body.iter(qn("w:txbxContent")):
+            for p in box.iter(qn("w:p")):
+                line = "".join(t.text or "" for t in p.iter(qn("w:t"))).strip()
+                if line and line not in seen:
+                    seen.add(line)
+                    parts.append(line)
+    except AppError:
+        raise
     except Exception as exc:
         raise AppError(ErrorCode.BAD_PARAM, f"DOCX 文件损坏或无法解析: {exc}") from exc
     return "\n".join(parts)

@@ -5,6 +5,7 @@
 这就是面向接口编程的好处：调用方不关心背后是谁在抽取。
 """
 import logging
+import threading
 from pathlib import Path
 
 from app.svc import ner_rules
@@ -17,14 +18,11 @@ METRICS_FILE = NER_MODEL_DIR / "metrics.json"
 
 _bert_pipeline = None       # 已加载的 transformers pipeline
 _model_checked = False      # 是否已尝试加载（失败不再重试，避免每请求开销）
+_init_lock = threading.Lock()  # 并发上传时多个后台任务同时触发加载，只允许加载一次
 
 
-def _get_bert_pipeline():
-    """懒加载 NER 模型；不可用时返回 None（规则兜底）"""
-    global _bert_pipeline, _model_checked
-    if _model_checked:
-        return _bert_pipeline
-    _model_checked = True
+def _load_pipeline():
+    """加载 NER 模型；不可用时返回 None（规则兜底）。只应被 _get_bert_pipeline 调用。"""
     if not (NER_MODEL_DIR / "config.json").exists():
         logger.info("NER 模型未就位(%s)，实体抽取走规则兜底(source=rule)", NER_MODEL_DIR)
         return None
@@ -37,16 +35,28 @@ def _get_bert_pipeline():
 
         tokenizer = AutoTokenizer.from_pretrained(str(NER_MODEL_DIR))
         model = AutoModelForTokenClassification.from_pretrained(str(NER_MODEL_DIR))
-        _bert_pipeline = pipeline(
+        pipe = pipeline(
             "token-classification",
             model=model,
             tokenizer=tokenizer,
             aggregation_strategy="simple",
         )
         logger.info("NER 模型已加载: %s", NER_MODEL_DIR)
+        return pipe
     except Exception as exc:  # 模型损坏等异常不阻断服务
         logger.warning("NER 模型加载失败，降级规则抽取: %s", exc)
-        _bert_pipeline = None
+        return None
+
+
+def _get_bert_pipeline():
+    """懒加载 NER 模型（双检锁：加载期间到达的其他请求等待而非误判为无模型）"""
+    global _bert_pipeline, _model_checked
+    if _model_checked:  # 快路径无锁
+        return _bert_pipeline
+    with _init_lock:
+        if not _model_checked:
+            _bert_pipeline = _load_pipeline()  # 先加载完再置位：等待者醒来才能拿到结果而非 None
+            _model_checked = True
     return _bert_pipeline
 
 
