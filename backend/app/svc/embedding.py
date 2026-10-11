@@ -17,7 +17,7 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
-_BERT_MODEL = "bert-base-chinese"
+_BERT_MODEL = os.getenv("BERT_MODEL_PATH", "bert-base-chinese")  # 可指向领域微调目录（tools/domain_mlm.py 产物）
 _CHAR_RE = re.compile(r"[一-龥a-z0-9]+")
 
 _bert_model = None
