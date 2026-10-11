@@ -1,0 +1,7 @@
+{
+  "corpus_lines": 4284,
+  "epochs": 3,
+  "minutes": 69.4,
+  "trained_at": "2026-10-11T14:25:20",
+  "base": "bert-base-chinese"
+}
