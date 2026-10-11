@@ -36,7 +36,67 @@ def test_degree_normalization():
     assert normalize_value("degree", "研究生") == "硕士"
     assert normalize_value("degree", "大学本科") == "本科"
     assert normalize_value("degree", "专科") == "大专"
-    assert normalize_value("degree", "神秘学历") == "其他"
+    # T29.2：判不出的学历返回 None（丢弃），不再归一成"其他"——那是一条原文里不存在的实体
+    assert normalize_value("degree", "神秘学历") is None
+    assert normalize_value("degree", "英语六级") is None
+
+
+def test_degree_unknown_not_extracted():
+    """全文没有可判定的学历词时，不得产出 degree 实体"""
+    ents = extract_entities("姓名：张三\n热爱学习，精通易经")
+    assert all(e["field_key"] != "degree" for e in ents)
+
+
+def test_skill_word_boundary_no_substring_false_positive():
+    """回归（T29.2）："SQL" 不得从 "MySQL" 里误切出来；单独出现时照常抽取"""
+    ents = extract_entities("技能：MySQL Redis")
+    skills = {e["field_value"] for e in ents if e["field_key"] == "skill"}
+    assert skills == {"mysql", "redis"}
+
+    ents2 = extract_entities("技能：SQL MySQL")
+    skills2 = {e["field_value"] for e in ents2 if e["field_key"] == "skill"}
+    assert skills2 == {"sql", "mysql"}
+
+    # 词边界同样挡住 "Go" 误切 "Golang"
+    ents3 = extract_entities("会 Golang")
+    skills3 = {e["field_value"] for e in ents3 if e["field_key"] == "skill"}
+    assert skills3 == {"golang"}
+
+
+def test_jd_skills_same_boundary_rule():
+    """JD 技能抽取与简历共用 match_skills，边界规则一致"""
+    from app.svc.jd_parsing import _extract_skills
+
+    assert _extract_skills("熟悉MySQL数据库") == ["MySQL"]
+    assert _extract_skills("熟悉 SQL MySQL") == ["MySQL", "SQL"]  # 长词优先序
+
+
+def test_normalize_value_strips_cjk_latin_boundary_spaces():
+    """T29.2：CJK 与英数交界的空格同样去除，实体值与原文逐字一致"""
+    assert normalize_value("title", "Java 开发工程师") == "Java开发工程师"
+    assert normalize_value("title", "5 年经验相关职位") == "5年经验相关职位"
+    assert normalize_value("skill", "Spring Boot") == "springboot"  # 纯英文内部空格保留再小写
+
+
+def test_bert_spans_need_line_basis(monkeypatch):
+    """回归（T29.2）：BERT 词碎片（##ot）与跨行粘连串不得落库，同行片段照常保留"""
+    from app.svc import ner
+
+    fake_spans = [
+        {"entity_group": "company", "word": "##ot"},                      # 词碎片 → 丢
+        {"entity_group": "title", "word": "文案策划剪映抖音小红书"},        # 跨行粘连 → 丢
+        {"entity_group": "name", "word": "张 伟"},                         # 同行（含字间空格）→ 留
+    ]
+    monkeypatch.setattr(ner, "_get_bert_pipeline", lambda: lambda chunk: fake_spans)
+
+    text = "姓名：张伟\n文案策划\n剪映\n抖音\n小红书"
+    ents = ner.extract_entities_bert(text)
+
+    assert all(not (e["field_key"] == "company") for e in ents)
+    assert all(not (e["field_key"] == "title") for e in ents)
+    names = [e["field_value"] for e in ents if e["field_key"] == "name"]
+    assert names == ["张伟"]
+    assert all(e["source"] == "bert" for e in ents)
 
 
 def test_years_bounds():

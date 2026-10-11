@@ -5,6 +5,7 @@
 这就是面向接口编程的好处：调用方不关心背后是谁在抽取。
 """
 import logging
+import re
 import threading
 from pathlib import Path
 
@@ -80,6 +81,8 @@ def extract_entities_bert(text: str) -> list[dict[str, str]]:
                 field_key = _map_label(item["entity_group"])
                 if field_key is None:
                     continue
+                if not _has_line_basis(item["word"], chunk):
+                    continue
                 value = ner_rules.normalize_value(field_key, item["word"])
                 if value and not any(
                     e["field_key"] == field_key and e["field_value"] == value for e in entities
@@ -102,6 +105,20 @@ def _map_label(label: str) -> str | None:
     """模型标签 → 7 字段。Colab 训练脚本直接以 7 字段名保存 id2label。"""
     label = label.lower().replace("b-", "").replace("i-", "").replace("e-", "").replace("s-", "")
     return label if label in ner_rules.ENTITY_KEYS_SET else None
+
+
+def _has_line_basis(span: str, chunk: str) -> bool:
+    """原文依据校验（T29.2）：实体片段去空白后必须逐字出现在原件的同一行里。
+
+    挡两类 BERT 聚合噪声——跨行粘连的长串（把两行技能拼成"文案策划剪映抖音小红书"）
+    和词碎片（"##ot"）：它们在页面上就是"查无原文"的假实体，宁可丢弃。
+    """
+    if "##" in span:
+        return False
+    v = re.sub(r"\s+", "", span)
+    if not v:
+        return False
+    return any(v in re.sub(r"\s+", "", line) for line in chunk.splitlines())
 
 
 def _split_sentences(text: str, max_len: int = 400) -> list[str]:

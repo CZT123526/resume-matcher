@@ -58,15 +58,18 @@ def normalize_value(field_key: str, value: str) -> str | None:
     value = (value or "").strip()
     if not value:
         return None
-    # BERT 字符级聚合会把汉字按"词"拼接、字间引入空格（"张 伟"）——CJK 邻接处去空格
-    value = re.sub(r"(?<=[一-鿿])\s+(?=[一-鿿])", "", value)
+    # BERT 字符级聚合会把汉字按"词"拼接、字间引入空格（"张 伟"），在 CJK 与英数交界
+    # 也会插空格（"Java 开发工程师"）——统一去掉，保证实体值与原文逐字一致（T29.2）
+    value = re.sub(r"(?<=[一-鿿])\s+(?=[一-鿿A-Za-z0-9])", "", value)
+    value = re.sub(r"(?<=[A-Za-z0-9])\s+(?=[一-鿿])", "", value)
     if field_key == "degree":
         v = value.lower()
         for canonical, aliases in _DEGREE_PATTERNS:
             # 只做"别名出现在值里"单向匹配：反向会把"研究生"误判进"博士研究生"
             if any(a.lower() in v for a in aliases):
                 return canonical
-        return "其他"
+        # T29.2：判不出的学历直接丢弃。归一成"其他"等于凭空造一条原文里不存在的实体
+        return None
     if field_key == "years":
         digits = re.sub(r"[^\d]", "", value)
         if not digits:
@@ -78,6 +81,34 @@ def normalize_value(field_key: str, value: str) -> str | None:
     if field_key == "name":
         return value if 2 <= len(value) <= 4 else None
     return value[:50]
+
+
+def _skill_present(kw: str, text_lower: str) -> bool:
+    """ASCII 关键词按词边界匹配，中文关键词按子串匹配（T29.2）。
+
+    朴素子串会把 "MySQL" 里的 "sql" 误切出来——页面上就是一条原文里不存在的技能。
+    """
+    if kw.isascii():
+        pat = rf"(?<![a-z0-9]){re.escape(kw.lower())}(?![a-z0-9])"
+        return re.search(pat, text_lower) is not None
+    return kw.lower() in text_lower
+
+
+def match_skills(text: str) -> list[str]:
+    """技能词典匹配（长词优先，忽略大小写，去重保序），简历与 JD 共用（T29.2）。
+
+    返回词典原样大小写（证据链展示与 JD 原文一致）；存储时由 normalize_value 统一转小写。
+    """
+    text_lower = text.lower()
+    found: list[str] = []
+    seen: set[str] = set()
+    for kw in sorted(SKILL_DICT, key=len, reverse=True):
+        lo = kw.lower()
+        if lo in seen or lo not in text_lower or not _skill_present(kw, text_lower):
+            continue
+        found.append(kw)
+        seen.add(lo)
+    return found
 
 
 def extract_entities(text: str) -> list[dict[str, str]]:
@@ -113,17 +144,8 @@ def extract_entities(text: str) -> list[dict[str, str]]:
     for s in schools:
         add("school", s)
 
-    # skill：词典匹配（长词优先，忽略大小写），去重取前30；normalize 统一转小写存储
-    text_lower = text.lower()
-    seen_lower: set[str] = set()
-    found = []
-    for kw in sorted(SKILL_DICT, key=len, reverse=True):
-        if kw.lower() in text_lower and kw.lower() not in seen_lower:
-            found.append(kw)
-            seen_lower.add(kw.lower())
-        if len(found) >= 30:
-            break
-    for kw in found:
+    # skill：词典匹配（长词优先，词边界防误切），去重取前30；normalize 统一转小写存储
+    for kw in match_skills(text)[:30]:
         add("skill", kw)
 
     # years：多模式取最大值（多段经历常只写总年限）
