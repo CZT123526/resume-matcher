@@ -37,13 +37,31 @@ def _title_map() -> tuple[dict[int, list[str]], dict[int, str]]:
     return titles, jds
 
 
+# 通用职位后缀词：剥离后再比对，避免"后端开发工程师/前端开发工程师"因
+# 共享"开发"被误判同岗（长词先剥）
+_GENERIC_TOKENS = ["工程师", "分析师", "设计师", "架构师", "开发", "专员", "经理", "助理", "主管", "总监"]
+
+
+def _core(title: str) -> str:
+    """剥离通用后缀词后的核心语义（如 后端开发工程师→后端、数据分析师→数据）"""
+    t = title.lower().strip()
+    for tok in _GENERIC_TOKENS:
+        t = t.replace(tok, "")
+    return t.strip()
+
+
 def _positive(jd_title: str, resume_titles: list[str]) -> bool:
-    """JD 标题与简历期望岗位共享 ≥2 字连续子串即视为匹配（课程级近似，人工抽检兜底）"""
+    """核心语义互含或共享 ≥2 字连续子串即视为匹配（课程级近似，人工抽检兜底）"""
+    jc = _core(jd_title)
     jt = jd_title.lower()
     for t in resume_titles:
         t = t.lower()
-        for i in range(len(t) - 1):
-            if t[i : i + 2] in jt:
+        rc = _core(t)
+        # 核心互含（"后端" ⊂ "Python后端"）优先；退化为原文字 bigram
+        if rc and jc and (rc in jc or jc in rc):
+            return True
+        for i in range(len(rc or t) - 1):
+            if (rc or t)[i : i + 2] in (jc or jt):
                 return True
     return False
 

@@ -2,7 +2,35 @@
 import pytest
 
 from tools.baselines.tfidf_baseline import rank_for_jds
+from tools.eval.build_gold import _core, _positive
 from tools.eval.metrics import ndcg_at_k, precision_at_k
+
+
+class TestGoldPositive:
+    """金标准正样本判定：剥通用词后比核心语义，防'后端/前端'共享'开发'误判同岗"""
+
+    def test_core_strips_generic(self):
+        assert _core("后端开发工程师") == "后端"
+        assert _core("前端开发工程师") == "前端"
+        assert _core("数据分析师") == "数据"
+        assert _core("平面设计师") == "平面"
+        assert _core("Python后端工程师") == "python后端"  # 保留技能词，剥职位通用词
+
+    def test_backend_not_frontend(self):
+        assert not _positive("前端开发工程师", ["后端开发工程师"])
+        assert not _positive("Python后端工程师", ["前端开发工程师"])
+
+    def test_backend_matches(self):
+        assert _positive("Python后端工程师", ["后端开发工程师"])
+        assert _positive("Python后端工程师", ["Python后端开发"])
+
+    def test_designer_vs_data(self):
+        assert not _positive("数据分析师", ["平面设计师"])
+        assert _positive("数据分析师", ["数据分析师", "数据分析专员"])
+
+    def test_fallback_bigram_when_all_generic(self):
+        # 全是通用词时回退原文 bigram（如 title 就是"开发"）
+        assert _positive("开发工程师", ["开发"])
 
 
 class TestNdcg:
