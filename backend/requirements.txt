@@ -11,6 +11,6 @@ httpx>=0.27
 
 # 可选重量级依赖（BERT 主路；未安装时系统自动降级 TF-IDF，见 svc/embedding.py）：
 #   pip install torch --index-url https://download.pytorch.org/whl/cpu
-#   pip install "transformers>=4.40"
+#   pip install "transformers>=4.40" "accelerate>=1.1.0"   # accelerate 为 Trainer 硬依赖（本地训练/冒烟用）
 # 评测图表（M04 离线实验用）：
 #   pip install matplotlib

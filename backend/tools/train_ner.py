@@ -7,8 +7,10 @@
      放到位后 app/svc/ner.py 自动启用，零改码。
 
 Colab T4 用法（推荐，本机 CPU 约 3~6 小时）：
-    单元1  !pip -q install "transformers>=4.41" "datasets>=2.19"
-           !pip -q install torch --index-url https://download.pytorch.org/whl/cpu   # CPU 版更小，T4 也可直接用自带 GPU torch
+    一键：Colab 打开同目录 train_colab.ipynb → 改运行时为 T4 → 全部运行，
+         结束自动下载 ner_model.zip，解压到 backend/models/ner/ 即生效。
+    手动（等价四步）：
+    单元1  !pip -q install "transformers>=4.41" "datasets>=2.19" "accelerate>=1.1.0"
     单元2  上传 ner_train/val/test.jsonl（或整个 tools/data/ 目录）到 /content/
     单元3  !NER_DATA_DIR=/content NER_MODEL_DIR=/content/models_ner python train_ner.py
     单元4  把产物目录打 zip 下载，解压到 backend/models/ner/
