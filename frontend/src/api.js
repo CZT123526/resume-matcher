@@ -29,7 +29,7 @@ export const uploadResume = (file) => {
   form.append('file', file)
   return request('/resumes/upload', { method: 'POST', body: form })
 }
-export const listResumes = (page = 1, pageSize = 100) =>
+export const listResumes = (page = 1, pageSize = 500) =>
   request(`/resumes?page=${page}&page_size=${pageSize}`)
 export const getResume = (id) => request(`/resumes/${id}`)
 export const deleteResume = (id) => request(`/resumes/${id}`, { method: 'DELETE' })
