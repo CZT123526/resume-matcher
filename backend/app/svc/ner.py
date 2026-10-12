@@ -76,12 +76,18 @@ def extract_entities_bert(text: str) -> list[dict[str, str]]:
     entities: list[dict[str, str]] = []
     # 句级切分与算法设计 §2.2 一致：长文本按行分批，防截断丢实体
     for chunk in _split_sentences(text):
+        lines = chunk.splitlines()
+        sections = _line_sections(lines)
         try:
             for item in pipe(chunk):
                 field_key = _map_label(item["entity_group"])
                 if field_key is None:
                     continue
                 if not _has_line_basis(item["word"], chunk):
+                    continue
+                if field_key == "title" and _is_project_line(item["word"], lines, sections):
+                    # 项目栏目里的"职位"多为项目名/项目内角色（"AI 日程管家/项目负责人"），
+                    # 不是求职岗位——原文有据但字段错，宁缺勿错（T30.3）
                     continue
                 value = ner_rules.normalize_value(field_key, item["word"])
                 if value and not any(
@@ -126,6 +132,44 @@ def _map_label(label: str) -> str | None:
     """模型标签 → 7 字段。Colab 训练脚本直接以 7 字段名保存 id2label。"""
     label = label.lower().replace("b-", "").replace("i-", "").replace("e-", "").replace("s-", "")
     return label if label in ner_rules.ENTITY_KEYS_SET else None
+
+
+_SECTION_HEADER_RE = re.compile(
+    r"^(项目(经历|经验|背景|实践|情况)|教育(经历|背景)|工作(经历|经验)|实习(经历|经验)"
+    r"|校园经历|社团经历|职业技能|技能特长|专业技能|技能|荣誉奖项|获奖情况|证书"
+    r"|自我评价|个人优势|语言能力|兴趣爱好|培训经历|基本信息)\s*[:：]?\s*$"
+)
+# 项目头行的"形"特征：破折号+竖线+日期段（如"AI 日程管家 — 智能日程规划 Agent | 项目负责人 2026.04-至今"）。
+# PDF 文字层顺序乱时栏目归属会失效（"项目经历"标题与内容被拆开），用行形兜底（T30.3）
+_DASH_RE = re.compile(r"—|–|--|─")
+_DATE_RANGE_RE = re.compile(r"\d{4}\.\d{1,2}|\d{4}/\d{1,2}|\d{4}-\d{1,2}|至今")
+
+
+def _line_sections(lines: list[str]) -> list[str | None]:
+    """给每行标所属栏目：栏目头行之后归属该栏目，直到下一个栏目头。
+    只有"项目*"栏目返回 '项目'，其余栏目返回 '其他'，无栏目为 None。"""
+    sections, cur = [], None
+    for line in lines:
+        s = line.strip()
+        if s and _SECTION_HEADER_RE.match(s):
+            cur = "项目" if s.startswith("项目") else "其他"
+        sections.append(cur)
+    return sections
+
+
+def _is_project_line(span: str, lines: list[str], sections: list[str | None]) -> bool:
+    """title 片段所在行是否属于项目语境：栏目为"项目"，或行形是项目头（破折号+竖线+日期段）"""
+    v = re.sub(r"\s+", "", span)
+    if not v:
+        return False
+    for i, line in enumerate(lines):
+        if v in re.sub(r"\s+", "", line):
+            if sections[i] == "项目":
+                return True
+            stripped = line.strip()
+            if "|" in stripped and _DASH_RE.search(stripped) and _DATE_RANGE_RE.search(stripped):
+                return True
+    return False
 
 
 def _has_line_basis(span: str, chunk: str) -> bool:
