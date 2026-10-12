@@ -123,7 +123,7 @@ def search_resumes(q: str = Query(..., min_length=1, max_length=100), limit: int
 
 @router.get("/{resume_id}")
 def resume_detail(resume_id: int):
-    """详情：解析状态 + 实体列表 + raw_text 前500字预览 + 解析质量信号（T29）"""
+    """详情：解析状态 + 实体列表 + raw_text 全文 + 解析质量信号（T29；T30.1 起返回全文）"""
     conn = get_db()
     try:
         row = conn.execute(
@@ -148,7 +148,7 @@ def resume_detail(resume_id: int):
         "file_name": row["file_name"],
         "parse_status": row["parse_status"],
         "parse_error": row["parse_error"],
-        "raw_text": full_text[:500] or None,
+        "raw_text": full_text or None,  # T30.1：不再截 500 字，弹窗内可滚动看全文
         "entities": entities,
         "created_at": iso_time(row["created_at"]),
         # 质量信号：done 但不像简历/零实体 → 前端给出"疑似扫描件"类提示，不阻断

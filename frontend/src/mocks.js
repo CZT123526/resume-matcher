@@ -25,7 +25,7 @@ const fixtures = {
       resume_id: 1,
       file_name: '张三.pdf',
       parse_status: 'done',
-      raw_text: '（前500字预览）姓名：张三，硕士，5年工作经验，技能：Python/FastAPI/MySQL……',
+      raw_text: '（原文全文）姓名：张三，硕士，5年工作经验，技能：Python/FastAPI/MySQL……',
       entities: [
         { field_key: 'name', field_value: '张三', source: 'bert' },
         { field_key: 'degree', field_value: '硕士', source: 'bert' },

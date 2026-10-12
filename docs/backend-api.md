@@ -59,7 +59,7 @@
 ```json
 {"code": 0, "message": "ok", "data": {
   "resume_id": 1, "file_name": "张三.pdf", "parse_status": "done", "parse_error": null,
-  "raw_text": "（前500字预览……）",
+  "raw_text": "（原文全文，T30.1 起不再截 500 字）",
   "entities": [
     {"field_key": "name", "field_value": "张三", "source": "bert"},
     {"field_key": "degree", "field_value": "本科", "source": "bert"},

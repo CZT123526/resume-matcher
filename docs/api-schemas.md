@@ -83,7 +83,7 @@ Query：`page=1`、`page_size=20`、`parse_status`（可选过滤）。
 | resume_id | int | |
 | file_name | string | |
 | parse_status | enum | |
-| raw_text | string\|null | 前 500 字预览（done 才有） |
+| raw_text | string\|null | 原文全文（T30.1 起不再截断；done 才有） |
 | entities | array | EntityItem[] |
 | entities[].field_key | enum | 7 类实体 |
 | entities[].field_value | string\|null | 规范化值（years 为数字字符串） |
