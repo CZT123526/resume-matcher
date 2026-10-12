@@ -144,6 +144,49 @@ def test_title_company_school_fragments_dropped():
     assert skills == {"mysql", "sql"}
 
 
+def test_bert_title_not_from_project_sections(monkeypatch):
+    """回归（T30.3）：项目栏目/项目头行里的 title 标注丢弃（项目名≠求职岗位），工作栏目保留"""
+    from app.svc import ner
+
+    def fake_pipe(chunk):
+        out = []
+        for line in chunk.splitlines():
+            if "日程管家" in line:
+                out.append({"entity_group": "title", "word": "智能日程规划"})
+            if "担任" in line and "后端" in line:
+                out.append({"entity_group": "title", "word": "后端开发工程师"})
+        return out
+
+    monkeypatch.setattr(ner, "_get_bert_pipeline", lambda: fake_pipe)
+
+    # 乱序 PDF（#160 实况）："项目经历"标题与内容被拆开，标题行靠行形规则识别
+    text = "项目经历\n职业技能\n教育背景\nAI 日程管家 — 智能日程规划 Agent | 项目负责人 2026.04-至今\n"
+    ents = ner.extract_entities_bert(text)
+    assert all(e["field_value"] != "智能日程规划" for e in ents)
+
+    # 正常顺序：工作经历栏目下的真职位不受影响
+    text2 = "工作经历\n2023-2024 某公司 担任后端开发工程师\n"
+    ents2 = ner.extract_entities_bert(text2)
+    assert any(e["field_value"] == "后端开发工程师" for e in ents2)
+
+
+def test_title_from_intent_line_without_known_suffix():
+    """回归（T30.3）：求职意向/应聘岗位是显式字段行，无已知后缀也能抽出岗位（ai 应用实习岗）"""
+    ents = extract_entities("求职意向： ai 应用实习岗\n姓名：陈泽天")
+    titles = [e["field_value"] for e in ents if e["field_key"] == "title"]
+    assert titles == ["ai应用实习岗"]  # normalize 去 CJK-latin 交界空格
+
+
+def test_school_not_as_company():
+    """回归（T30.3）：校名结尾的值不再出现在公司字段（佛山大学曾被 BERT 标成 company）"""
+    from app.svc.ner_rules import normalize_value as nv
+
+    assert nv("company", "佛山大学") is None
+    assert nv("company", "北京理工大学") is None
+    assert nv("company", "字节跳动科技有限公司") == "字节跳动科技有限公司"
+    assert nv("company", "成都澄海数据服务有限公司") == "成都澄海数据服务有限公司"
+
+
 def test_years_bounds():
     assert normalize_value("years", "3年") == "3"
     assert normalize_value("years", "999年") == "50"   # 上限截断

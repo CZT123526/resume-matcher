@@ -41,6 +41,11 @@ _TITLE_RE = re.compile(
     r"([一-龥A-Za-z/]{2,20}(?:工程师|经理|主管|总监|专员|助理|实习生|"
     r"架构师|分析师|设计师|开发|运营|产品经理|教师|会计|护士|研究员|科学家))"
 )
+# 求职意向/应聘岗位是显式字段行，值本身已被锚定，不再要求已知职位后缀（T30.3）：
+# 像"求职意向： ai 应用实习岗"这种新式岗位名后缀表覆盖不到，之前只能漏掉
+_TITLE_INTENT_RE = re.compile(
+    r"(?:求职意向|应聘岗位)\s*[:：]\s*([一-龥A-Za-z0-9][一-龥A-Za-z0-9 \t]{0,24})"
+)
 _COMPANY_RE = re.compile(
     r"([一-龥A-Za-z0-9]{2,20}?(?:有限公司|股份有限公司|集团|科技公司|信息技术公司|银行))"
 )
@@ -95,6 +100,9 @@ def normalize_value(field_key: str, value: str) -> str | None:
         if v.lower() in _NON_TITLE_VALUES or _TITLE_LEVEL_RE.search(v):
             return None
         return v[:50]
+    if field_key == "company" and re.search(r"(大学|学院|学校)$", value) and "公司" not in value:
+        # 教育机构被 BERT 误标成公司（"公司：佛山大学"）——以校名结尾的值不是公司（T30.3）
+        return None
     return value[:50]
 
 
@@ -170,10 +178,14 @@ def extract_entities(text: str) -> list[dict[str, str]]:
     elif years:
         add("years", str(max(years)))
 
-    # title / company
+    # title / company（求职意向行无已知后缀时退回锚定模式）
     m = _TITLE_RE.search(text)
     if m:
         add("title", m.group(1))
+    else:
+        m = _TITLE_INTENT_RE.search(text)
+        if m:
+            add("title", m.group(1).strip())
     companies = []
     for m in _COMPANY_RE.finditer(text):
         c = m.group(1).strip()
