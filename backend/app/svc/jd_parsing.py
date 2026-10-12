@@ -5,7 +5,7 @@
 """
 import re
 
-from app.svc.ner_rules import SKILL_DICT, normalize_value
+from app.svc.ner_rules import match_skills, normalize_value
 
 # JD 里学历要求的常见表述
 _DEGREE_RE = re.compile(r"(博士|硕士|研究生|本科|大专|专科|学历不限)")
@@ -56,11 +56,4 @@ def _extract_min_years(text: str) -> int | None:
 
 def _extract_skills(text: str) -> list[str]:
     """匹配忽略大小写，存储保留词典展示大小写（证据链显示效果与契约示例一致）"""
-    text_lower = text.lower()
-    found: list[str] = []
-    for kw in sorted(SKILL_DICT, key=len, reverse=True):
-        if kw.lower() in text_lower and kw not in found:
-            found.append(kw)
-        if len(found) >= 20:
-            break
-    return found
+    return match_skills(text)[:20]
