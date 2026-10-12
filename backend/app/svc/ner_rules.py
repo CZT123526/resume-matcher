@@ -44,6 +44,15 @@ _TITLE_RE = re.compile(
 _COMPANY_RE = re.compile(
     r"([一-龥A-Za-z0-9]{2,20}?(?:有限公司|股份有限公司|集团|科技公司|信息技术公司|银行))"
 )
+# 职位字段黑名单（T30.2）：政治面貌/语言等级是"身份与证书"，任何情况下都不是职位。
+# BERT 在"政治面貌：共青团员"这类行上高频把值标成 title——原文有据但字段错，整条丢弃（宁缺勿错）。
+_NON_TITLE_VALUES = frozenset({
+    "共青团员", "中共党员", "预备党员", "入党积极分子", "群众", "团员",
+    "团骨干", "骨干成员", "学生会成员", "普通话二级甲等", "普通话二级乙等",
+})
+_TITLE_LEVEL_RE = re.compile(r"(?:四|六)级$")  # 英语四级/六级、CET 尾缀——语言等级不是职位
+
+
 # 工作年限：只认带上下文的年限，避免把"3年制大专"误判成经验
 _YEARS_RES = [
     re.compile(r"(\d{1,2})\s*年(?:以上)?(?:的)?.{0,4}(?:工作|从业|开发|相关)?经验"),
@@ -80,6 +89,12 @@ def normalize_value(field_key: str, value: str) -> str | None:
         return value.lower().replace(" ", "")
     if field_key == "name":
         return value if 2 <= len(value) <= 4 else None
+    if field_key == "title":
+        # BERT 字符聚合会在英数交界插空格（"C + + 开发工程师"）——全去空格还原原文写法（T30.2）
+        v = re.sub(r"\s+", "", value)
+        if v.lower() in _NON_TITLE_VALUES or _TITLE_LEVEL_RE.search(v):
+            return None
+        return v[:50]
     return value[:50]
 
 

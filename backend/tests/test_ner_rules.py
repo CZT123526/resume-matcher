@@ -108,6 +108,42 @@ def test_school_not_from_contest_lines():
     assert all(e["field_key"] != "school" for e in ents2)
 
 
+def test_title_normalization_strips_spaces_and_blocks_non_titles():
+    """回归（T30.2）：title 去 BERT 插入空格还原原文写法；政治面貌/语言等级不是职位"""
+    from app.svc.ner_rules import normalize_value as nv
+
+    assert nv("title", "C + + 开发工程师") == "C++开发工程师"
+    assert nv("title", "后 端 开 发 工 程 师") == "后端开发工程师"
+    assert nv("title", "共青团员") is None
+    assert nv("title", "中共党员") is None
+    assert nv("title", "英语六级") is None
+    assert nv("title", "语四级") is None       # 四/六级尾缀一律拦截
+    assert nv("title", "后端开发工程师") == "后端开发工程师"  # 正常职位不受影响
+
+
+def test_title_company_school_fragments_dropped():
+    """回归（T30.2）：同字段子串碎片与单字残渣整条丢弃；skill 不参与（sql/mysql 是不同技能）"""
+    from app.svc.ner import _drop_fragments
+
+    ents = [
+        {"field_key": "title", "field_value": "开发工程师", "source": "bert"},
+        {"field_key": "title", "field_value": "程师", "source": "bert"},      # 子串残渣 → 丢
+        {"field_key": "title", "field_value": "专", "source": "bert"},        # 单字 → 丢
+        {"field_key": "title", "field_value": "产品经理", "source": "bert"},  # 无包含关系 → 留
+        {"field_key": "company", "field_value": "阿里云ACP", "source": "bert"},
+        {"field_key": "company", "field_value": "里云", "source": "bert"},    # 子串残渣 → 丢
+        {"field_key": "skill", "field_value": "mysql", "source": "rule"},
+        {"field_key": "skill", "field_value": "sql", "source": "rule"},       # 技能互不吞 → 都留
+    ]
+    out = _drop_fragments(ents)
+    titles = [e["field_value"] for e in out if e["field_key"] == "title"]
+    comps = [e["field_value"] for e in out if e["field_key"] == "company"]
+    skills = {e["field_value"] for e in out if e["field_key"] == "skill"}
+    assert titles == ["开发工程师", "产品经理"]
+    assert comps == ["阿里云ACP"]
+    assert skills == {"mysql", "sql"}
+
+
 def test_years_bounds():
     assert normalize_value("years", "3年") == "3"
     assert normalize_value("years", "999年") == "50"   # 上限截断

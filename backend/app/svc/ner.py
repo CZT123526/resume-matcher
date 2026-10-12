@@ -98,7 +98,28 @@ def extract_entities_bert(text: str) -> list[dict[str, str]]:
     for e in ner_rules.extract_entities(text):
         if e["field_key"] not in covered:
             entities.append(e)
-    return entities
+    return _drop_fragments(entities)
+
+
+def _drop_fragments(entities: list[dict[str, str]]) -> list[dict[str, str]]:
+    """同字段碎片过滤（T30.2）：BERT 字符级聚合常把一个长实体截短另出一条
+    （"程师"⊂"开发工程师"、"里云"⊂"阿里云ACP"、单字"专/委/级"）——
+    短值是长值的残渣，页面上就是明显的坏词条，按"宁缺勿错"整条丢弃。
+    只作用于 title/company/school 三个多值文本字段；skill 不参与
+    （"sql" 确实是 "mysql" 的子串但两者是不同技能，不能互吞）。"""
+    by_field: dict[str, list[str]] = {}
+    for e in entities:
+        by_field.setdefault(e["field_key"], []).append(e["field_value"])
+
+    def is_fragment(field: str, value: str) -> bool:
+        vals = by_field.get(field, [])
+        return len(value) < 2 or any(value != v and value in v for v in vals)
+
+    return [
+        e for e in entities
+        if e["field_key"] not in {"title", "company", "school"}
+        or not is_fragment(e["field_key"], e["field_value"])
+    ]
 
 
 def _map_label(label: str) -> str | None:
