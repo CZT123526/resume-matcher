@@ -42,11 +42,14 @@ def _run_parse(resume_id: int, file_bytes: bytes, filename: str) -> None:
                 "INSERT INTO entities(resume_id, field_key, field_value, source) VALUES(?,?,?,?)",
                 [(resume_id, e["field_key"], e["field_value"], e["source"]) for e in entities],
             )
-            # 全文索引同步（重建式写入，保证幂等）
-            conn.execute("DELETE FROM resume_search WHERE resume_id=?", (str(resume_id),))
+            # 全文索引同步（重建式写入，保证幂等；FTS5 的 UNINDEXED 列无类型亲和，
+            # 历史数据 int/str 混存，必须 CAST 后比较才能删干净——T32）
+            conn.execute(
+                "DELETE FROM resume_search WHERE CAST(resume_id AS INTEGER)=?", (resume_id,)
+            )
             conn.execute(
                 "INSERT INTO resume_search(resume_id, file_name, raw_text) VALUES(?,?,?)",
-                (str(resume_id), filename, text),
+                (int(resume_id), filename, text),
             )
             conn.commit()
             logger.info("简历 %s 解析完成，抽取实体 %d 条", resume_id, len(entities))

@@ -85,6 +85,31 @@ def test_delete_then_404():
     assert client.delete(f"/api/resumes/{rid}").status_code == 404
 
 
+def _fts_count(rid: int) -> int:
+    from app.db import get_db
+
+    conn = get_db()
+    try:
+        return conn.execute(
+            "SELECT COUNT(*) FROM resume_search WHERE CAST(resume_id AS INTEGER)=?", (rid,)
+        ).fetchone()[0]
+    finally:
+        conn.close()
+
+
+def test_fts_sync_on_delete_and_reparse():
+    """T32 回归：FTS5 的 UNINDEXED 列无类型亲和（历史 int/str 混存），
+    删除与重解析必须 CAST 清理旧行——否则残留脏行越积越多"""
+    rid = client.post("/api/resumes/upload", files={"file": ("f.docx", _make_docx(RESUME_TEXT), "application/octet-stream")}).json()["data"]["resume_id"]
+    assert _fts_count(rid) == 1
+    # 重解析：重建式写入，仍只有一行
+    client.post(f"/api/resumes/{rid}/reparse")
+    assert _fts_count(rid) == 1
+    # 删除：索引行同步清除
+    client.delete(f"/api/resumes/{rid}")
+    assert _fts_count(rid) == 0
+
+
 def test_delete_resume_referenced_by_match_results():
     """回归：简历被匹配结果引用时也可删（match_results.resume_id 级联，schema 漏标曾致 500）"""
     rid = client.post("/api/resumes/upload", files={"file": ("r.docx", _make_docx(RESUME_TEXT), "application/octet-stream")}).json()["data"]["resume_id"]

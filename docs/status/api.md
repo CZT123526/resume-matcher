@@ -22,3 +22,4 @@
 | API-14 | POST /api/resumes/{id}/reparse | 重新解析（用落盘原件重跑流水线） | 成员A | 已完成 | `a571298` 2026-10-11；失败简历/换模型后手动触发，202+后台任务，无原件 404 |
 | API-15 | GET /api/resumes/search | 简历全文搜索（FTS5 trigram 中文子串） | 成员A | 已完成 | `a571298` 2026-10-11；≥3字 FTS MATCH，1-2字 LIKE 降级，snippet「」高亮 |
 | API-16 | GET /api/resumes/{id}/data | 解析数据视图（全文/实体/匹配输入/向量预览） | 成员A | 已完成 | `a571298` 2026-10-11；向量实时编码仅供查看不动缓存 |
+| API-17 | DELETE /api/jds/{id} | 删除JD（名下匹配任务连带删除，结果随FK级联） | 成员B | 已完成 | T32 2026-10-12；响应报 deleted_match_tasks；API-07 同步增 match_task_count 字段 |

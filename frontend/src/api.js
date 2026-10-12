@@ -46,6 +46,7 @@ export const createJd = (title, content) => request('/jds', jsonInit('POST', { t
 export const listJds = (page = 1, pageSize = 100) =>
   request(`/jds?page=${page}&page_size=${pageSize}`)
 export const getJd = (id) => request(`/jds/${id}`)
+export const deleteJd = (id) => request(`/jds/${id}`, { method: 'DELETE' })
 
 // ---------- 匹配 ----------
 export const createMatchTask = (jdId, topK = 10) =>

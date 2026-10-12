@@ -1,9 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { createJd, listJds, getJd } from '../api'
-
-// 评测查询语料（金标准 216 对引用 id 1~13 的 JD，T26 冻结协议，不可删改）——
-// 前端折叠展示，同简历库的种子分组策略（T29.3）；新增招聘岗位 id 从 14 起
-const EVAL_JD_MAX_ID = 13
+import { createJd, listJds, getJd, deleteJd } from '../api'
 
 export default function Jds() {
   const [items, setItems] = useState([])
@@ -61,8 +57,21 @@ export default function Jds() {
     }
   }
 
-  const mainItems = items.filter((j) => j.jd_id > EVAL_JD_MAX_ID)
-  const evalItems = items.filter((j) => j.jd_id <= EVAL_JD_MAX_ID)
+  // 删除 JD（T32）：名下匹配任务连带删除，响应里有 deleted_match_tasks 数量
+  const onDelete = async () => {
+    const n = detail?.match_task_count
+    if (!window.confirm(
+      `确认删除「${detail.title}」？${n ? `名下 ${n} 个匹配任务及其结果将一并删除。` : ''}`
+    )) return
+    try {
+      const d = await deleteJd(detail.jd_id)
+      setMsg(`已删除 JD ${d.jd_id}${d.deleted_match_tasks ? `（连带 ${d.deleted_match_tasks} 个匹配任务）` : ''}`)
+      closeModal()
+      await refresh()
+    } catch (e) {
+      setMsg(`删除失败：${e.message}`)
+    }
+  }
 
   const renderTable = (rows) => (
     <table>
@@ -99,21 +108,11 @@ export default function Jds() {
       </div>
 
       <div className="card">
-        <h3>岗位列表（招聘岗位 {mainItems.length} 个 + 评测查询语料 {evalItems.length} 条）</h3>
+        <h3>岗位列表（{items.length} 个）</h3>
         {items.length === 0 ? (
           <div className="empty">还没有 JD，先创建一条</div>
         ) : (
-          <>
-            {renderTable(mainItems)}
-            {evalItems.length > 0 && (
-              <details style={{ marginTop: 10 }}>
-                <summary className="muted" style={{ cursor: 'pointer' }}>
-                  评测查询语料（{evalItems.length} 条）· 对比实验专用 · 金标准 216 对引用 · 点开展开
-                </summary>
-                {renderTable(evalItems)}
-              </details>
-            )}
-          </>
+          renderTable(items)
         )}
       </div>
 
@@ -125,6 +124,10 @@ export default function Jds() {
               <button className="modal-close" title="关闭（Esc）" onClick={closeModal}>×</button>
             </div>
             <div className="modal-body">
+              <div className="row" style={{ marginBottom: 10 }}>
+                <button className="btn danger" onClick={onDelete}>删除此岗位</button>
+                <span className="muted">名下匹配任务及结果会一并删除</span>
+              </div>
               <div className="field-label">结构化要求（自动抽取）</div>
               <div>
                 {detail.req_json
