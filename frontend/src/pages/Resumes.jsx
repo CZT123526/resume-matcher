@@ -133,6 +133,38 @@ export default function Resumes() {
   const q = detail?.quality || {}
   const lowQuality = detail?.parse_status === 'done' && (!q.like_resume || q.entity_count === 0)
 
+  // 分组展示（T29.3）：评测种子语料是 resume_ 前缀命名的最简简历（对比实验数字的载体），
+  // 折叠到下方专区；主展示区只放模板实测简历。搜索时不分组，全库一起搜。
+  const isSeed = (r) => (r.file_name || '').startsWith('resume_')
+  const mainItems = searchInfo ? items : items.filter((r) => !isSeed(r))
+  const seedItems = searchInfo ? [] : items.filter(isSeed)
+
+  const renderTable = (rows, isSearch) => (
+    <table>
+      <thead>
+        <tr><th>ID</th><th>文件名</th><th>解析状态</th><th>{isSearch ? '命中片段' : '上传时间'}</th><th>操作</th></tr>
+      </thead>
+      <tbody>
+        {rows.map((r) => (
+          <tr key={r.resume_id} className="clickable" onClick={() => openDetail(r.resume_id)}>
+            <td>{r.resume_id}</td>
+            <td>
+              <a className="file-link" onClick={(e) => { e.stopPropagation(); openFile(r.resume_id) }}
+                title="打开简历原件">{r.file_name}</a>
+            </td>
+            <td><span className={`badge ${r.parse_status}`}>{STATUS_TEXT[r.parse_status] || r.parse_status}</span></td>
+            {isSearch
+              ? <td className="muted snippet-cell">{r.snippet || '—'}</td>
+              : <td className="muted">{r.created_at}</td>}
+            <td>
+              <button className="btn danger" onClick={(e) => { e.stopPropagation(); onDelete(r.resume_id) }}>删除</button>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )
+
   return (
     <div>
       <div className="card">
@@ -152,7 +184,9 @@ export default function Resumes() {
       </div>
 
       <div className="card">
-        <h3>{searchInfo ? `搜索「${searchInfo.q}」· 命中 ${searchInfo.total} 份` : `简历列表（共 ${total} 份）`}</h3>
+        <h3>{searchInfo
+          ? `搜索「${searchInfo.q}」· 命中 ${searchInfo.total} 份`
+          : `简历列表（模板实测 ${mainItems.length} 份 + 评测种子语料 ${seedItems.length} 份）`}</h3>
         <div className="row" style={{ marginBottom: 8 }}>
           <input style={{ width: 260 }} placeholder="全文搜索：技能/公司/学校/任意原文片段"
             value={searchQ} onChange={(e) => setSearchQ(e.target.value)}
@@ -166,29 +200,17 @@ export default function Resumes() {
         {items.length === 0 ? (
           <div className="empty">{searchInfo ? '没有命中的简历，换个关键词试试' : '还没有简历，先上传一份试试'}</div>
         ) : (
-          <table>
-            <thead>
-              <tr><th>ID</th><th>文件名</th><th>解析状态</th><th>{searchInfo ? '命中片段' : '上传时间'}</th><th>操作</th></tr>
-            </thead>
-            <tbody>
-              {items.map((r) => (
-                <tr key={r.resume_id} className="clickable" onClick={() => openDetail(r.resume_id)}>
-                  <td>{r.resume_id}</td>
-                  <td>
-                    <a className="file-link" onClick={(e) => { e.stopPropagation(); openFile(r.resume_id) }}
-                      title="打开简历原件">{r.file_name}</a>
-                  </td>
-                  <td><span className={`badge ${r.parse_status}`}>{STATUS_TEXT[r.parse_status] || r.parse_status}</span></td>
-                  {searchInfo
-                    ? <td className="muted snippet-cell">{r.snippet || '—'}</td>
-                    : <td className="muted">{r.created_at}</td>}
-                  <td>
-                    <button className="btn danger" onClick={(e) => { e.stopPropagation(); onDelete(r.resume_id) }}>删除</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <>
+            {renderTable(mainItems, !!searchInfo)}
+            {!searchInfo && seedItems.length > 0 && (
+              <details style={{ marginTop: 10 }}>
+                <summary className="muted" style={{ cursor: 'pointer' }}>
+                  评测种子语料（{seedItems.length} 份）· 对比实验专用 · 每份只有几句话的最简简历 · 点开展开
+                </summary>
+                {renderTable(seedItems, false)}
+              </details>
+            )}
+          </>
         )}
       </div>
 
