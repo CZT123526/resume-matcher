@@ -85,6 +85,23 @@ def test_match_full_flow():
     assert scores == sorted(scores, reverse=True)
 
 
+def test_jd_delete_cascades_tasks():
+    """T32：删 JD 连带删名下匹配任务（结果随 FK 级联），重复删 404"""
+    jd_id = test_jd_crud()
+    _seed_resumes()
+    r = client.post("/api/match-tasks", json={"jd_id": jd_id, "top_k": 2})
+    assert r.status_code == 202
+    task_id = r.json()["data"]["task_id"]
+    assert client.get(f"/api/match-tasks/{task_id}").json()["data"]["status"] == "done"
+
+    d = client.delete(f"/api/jds/{jd_id}").json()["data"]
+    assert d == {"jd_id": jd_id, "deleted": True, "deleted_match_tasks": 1}
+    assert client.get(f"/api/jds/{jd_id}").status_code == 404
+    assert client.get(f"/api/match-tasks/{task_id}").status_code == 404
+    assert client.get(f"/api/match-tasks/{task_id}/results").status_code == 404
+    assert client.delete(f"/api/jds/{jd_id}").status_code == 404
+
+
 def test_match_task_validation_and_409():
     assert client.post("/api/match-tasks", json={"jd_id": 999999}).status_code == 404
     # top_k 超范围 → 400 E4001

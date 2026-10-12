@@ -56,6 +56,9 @@ def jd_detail(jd_id: int):
         row = conn.execute(
             "SELECT id, title, content, req_json, created_at FROM jds WHERE id=?", (jd_id,)
         ).fetchone()
+        n_tasks = conn.execute(
+            "SELECT COUNT(*) FROM match_tasks WHERE jd_id=?", (jd_id,)
+        ).fetchone()[0]
     finally:
         conn.close()
     if row is None:
@@ -65,5 +68,28 @@ def jd_detail(jd_id: int):
         "title": row["title"],
         "content": row["content"],
         "req_json": json.loads(row["req_json"]) if row["req_json"] else None,
+        "match_task_count": n_tasks,
         "created_at": iso_time(row["created_at"]),
     })
+
+
+@router.delete("/{jd_id}")
+def delete_jd(jd_id: int):
+    """删除 JD（T32）：名下匹配任务连带删除，任务结果随外键 ON DELETE CASCADE 清除。
+
+    响应如实报告 deleted_match_tasks 数量——历史匹配记录不悬空，也不静默丢失。
+    """
+    conn = get_db()
+    try:
+        exists = conn.execute("SELECT 1 FROM jds WHERE id=?", (jd_id,)).fetchone()
+        if exists is None:
+            raise AppError(ErrorCode.NOT_FOUND, f"JD {jd_id} 不存在")
+        n_tasks = conn.execute(
+            "SELECT COUNT(*) FROM match_tasks WHERE jd_id=?", (jd_id,)
+        ).fetchone()[0]
+        conn.execute("DELETE FROM match_tasks WHERE jd_id=?", (jd_id,))
+        conn.execute("DELETE FROM jds WHERE id=?", (jd_id,))
+        conn.commit()
+    finally:
+        conn.close()
+    return ok({"jd_id": jd_id, "deleted": True, "deleted_match_tasks": n_tasks})

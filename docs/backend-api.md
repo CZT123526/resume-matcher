@@ -126,7 +126,11 @@
 - 响应 `200`：`{"code": 0, "message": "ok", "data": {"total": 1, "items": [{"jd_id": 1, "title": "Python后端工程师", "created_at": "2026-10-10T15:00:00"}]}}`
 
 ### GET /api/jds/{id} ｜无需登录
-- 响应 `200`：含 `content` 与 `req_json`（结构化要求对象）
+- 响应 `200`：含 `content`、`req_json`（结构化要求对象）与 `match_task_count`（名下匹配任务数，T32）
+
+### DELETE /api/jds/{id} ｜无需登录 ｜T32
+- 响应 `200`：`{"code": 0, "message": "ok", "data": {"jd_id": 1, "deleted": true, "deleted_match_tasks": 2}}`
+> 说明：名下匹配任务**连带删除**（任务结果随外键 `ON DELETE CASCADE` 清除），`deleted_match_tasks` 如实报告删除数，不静默丢失；JD 不存在 → 404。
 
 ---
 

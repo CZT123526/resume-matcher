@@ -126,7 +126,14 @@ Body：`{"title": string(1..100), "content": string(1..5000)}`
 | title | string | |
 | content | string | 原文 |
 | req_json | object\|null | `{"degree": "本科"\|null, "min_years": 3\|null, "skills": ["Python"]}` |
+| match_task_count | int | 名下匹配任务数（T32） |
 | created_at | string | |
+
+### DELETE /api/jds/{id} `200` ｜T32
+
+`data`：`{"jd_id": int, "deleted": true, "deleted_match_tasks": int}`
+
+> 名下匹配任务连带删除（match_results 随外键级联清除）。
 
 ---
 

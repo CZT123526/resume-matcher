@@ -270,7 +270,10 @@ def delete_resume(resume_id: int):
         if exists is None:
             raise AppError(ErrorCode.NOT_FOUND, f"简历 {resume_id} 不存在")
         conn.execute("DELETE FROM resumes WHERE id=?", (resume_id,))
-        conn.execute("DELETE FROM resume_search WHERE resume_id=?", (str(resume_id),))  # 全文索引同步清除
+        # 全文索引同步清除（FTS5 的 UNINDEXED 列无类型亲和，CAST 兼容 int/str 混存——T32）
+        conn.execute(
+            "DELETE FROM resume_search WHERE CAST(resume_id AS INTEGER)=?", (resume_id,)
+        )
         conn.commit()
     finally:
         conn.close()
