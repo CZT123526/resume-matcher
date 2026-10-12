@@ -111,9 +111,11 @@ tr.clickable:hover { background: var(--gray-weak); }
 .modal {
   background: var(--card); border-radius: 12px; width: 100%; max-width: 760px;
   padding: 18px 20px; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+  max-height: 90vh; display: flex; flex-direction: column;  /* T30.1：限高，标题常驻、正文内滚 */
 }
-.modal-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.modal-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; flex-shrink: 0; }
 .modal-head h3 { margin: 0; font-size: 15px; flex: 1; }
+.modal-body { overflow-y: auto; min-height: 0; padding-right: 6px; }
 .modal-close {
   border: none; background: var(--gray-weak); color: var(--muted);
   width: 30px; height: 30px; border-radius: 8px; cursor: pointer;

@@ -48,6 +48,6 @@ class ResumeDetail(BaseModel):
     resume_id: int
     file_name: str
     parse_status: ParseStatus
-    raw_text: Optional[str] = None       # 前500字预览
+    raw_text: Optional[str] = None       # 原文全文（T30.1 起不再截 500 字）
     entities: List[EntityItem] = []
     created_at: str

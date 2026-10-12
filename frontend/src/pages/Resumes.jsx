@@ -232,6 +232,7 @@ export default function Resumes() {
               </h3>
               <button className="modal-close" title="关闭（Esc）" onClick={closeModal}>×</button>
             </div>
+            <div className="modal-body">
             <div className="row" style={{ marginBottom: 10 }}>
               <button className="btn ghost" onClick={() => openFile(detail.resume_id)}>查看原件</button>
               <button className="btn ghost" onClick={() => openData(detail.resume_id)}>查看解析数据</button>
@@ -252,8 +253,9 @@ export default function Resumes() {
                 ))
                 : <span className="muted">（暂无实体）</span>}
             </div>
-            <div className="field-label">原文预览（前 500 字）</div>
+            <div className="field-label">简历原文（全文 {detail.quality?.text_chars ?? (detail.raw_text || '').length} 字，弹窗内可滚动）</div>
             <div className="muted" style={{ whiteSpace: 'pre-wrap' }}>{detail.raw_text || '（无）'}</div>
+            </div>
           </div>
         </div>
       )}
@@ -266,6 +268,7 @@ export default function Resumes() {
               <button className="btn ghost" onClick={() => setData(null)}>返回详情</button>
               <button className="modal-close" title="关闭（Esc）" onClick={closeModal}>×</button>
             </div>
+            <div className="modal-body">
             <div className="row">
               <span className="chip">正文 {data.stats.text_chars} 字</span>
               <span className="chip">实体 {data.stats.entity_count} 条</span>
@@ -291,6 +294,7 @@ export default function Resumes() {
               <summary className="muted" style={{ cursor: 'pointer' }}>展开/收起全文</summary>
               <div className="muted" style={{ whiteSpace: 'pre-wrap' }}>{data.raw_text}</div>
             </details>
+            </div>
           </div>
         </div>
       )}
