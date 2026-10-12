@@ -54,7 +54,7 @@ async def upload_resume(background: BackgroundTasks, file: UploadFile = File(...
 @router.get("")
 def list_resumes(
     page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
+    page_size: int = Query(20, ge=1, le=500),
     parse_status: str | None = Query(None),
 ):
     """分页列表（不含 raw_text 大字段）；parse_status 可选过滤"""

@@ -99,6 +99,15 @@ def test_bert_spans_need_line_basis(monkeypatch):
     assert all(e["source"] == "bert" for e in ents)
 
 
+def test_school_not_from_contest_lines():
+    """回归（T30）："大学生"的"生"须被排除，竞赛/活动行不得产出虚假学校名"""
+    ents = extract_entities("获奖情况：2018 年安徽省大学生程序设计竞赛银奖")
+    schools = {e["field_value"] for e in ents if e["field_key"] == "school"}
+    assert schools == set()
+    ents2 = extract_entities("2023 年获全国大学生数学建模竞赛一等奖")
+    assert all(e["field_key"] != "school" for e in ents2)
+
+
 def test_years_bounds():
     assert normalize_value("years", "3年") == "3"
     assert normalize_value("years", "999年") == "50"   # 上限截断

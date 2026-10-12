@@ -130,6 +130,14 @@ export default function Resumes() {
     }
   }
 
+  // 详情/解析数据用弹窗展示（T30）：× 或点遮罩或 Esc 关闭
+  const closeModal = () => { setDetail(null); setData(null) }
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') closeModal() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
   const q = detail?.quality || {}
   const lowQuality = detail?.parse_status === 'done' && (!q.like_resume || q.entity_count === 0)
 
@@ -215,62 +223,75 @@ export default function Resumes() {
       </div>
 
       {detail && (
-        <div className="card">
-          <h3>
-            简历详情 · {detail.file_name}{' '}
-            <span className={`badge ${detail.parse_status}`}>{STATUS_TEXT[detail.parse_status]}</span>
-            <button className="btn ghost" style={{ marginLeft: 12 }} onClick={() => openFile(detail.resume_id)}>查看原件</button>
-            <button className="btn ghost" style={{ marginLeft: 8 }} onClick={() => openData(detail.resume_id)}>查看解析数据</button>
-            <button className="btn ghost" style={{ marginLeft: 8 }} onClick={() => onReparse(detail.resume_id)}>重新解析</button>
-          </h3>
-          {detail.parse_status === 'failed' && (
-            <div className="error-text">解析失败：{detail.parse_error || '未知原因'}</div>
-          )}
-          {lowQuality && (
-            <div className="warn-text">解析质量提示：正文 {q.text_chars} 字、实体 {q.entity_count} 条
-              {q.like_resume ? '' : '，且内容不像简历'}——可能是扫描件/图片型文件，建议重新解析或换文件</div>
-          )}
-          <div className="field-label">抽取实体（来源：{detail.entities?.[0]?.source || '—'}）</div>
-          <div>
-            {detail.entities?.length
-              ? detail.entities.map((e, i) => (
-                <span key={i} className="chip">{FIELD_TEXT[e.field_key] || e.field_key}：{e.field_value}</span>
-              ))
-              : <span className="muted">（暂无实体）</span>}
+        <div className="modal-overlay" onClick={closeModal}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-head">
+              <h3>
+                简历详情 · {detail.file_name}{' '}
+                <span className={`badge ${detail.parse_status}`}>{STATUS_TEXT[detail.parse_status]}</span>
+              </h3>
+              <button className="modal-close" title="关闭（Esc）" onClick={closeModal}>×</button>
+            </div>
+            <div className="row" style={{ marginBottom: 10 }}>
+              <button className="btn ghost" onClick={() => openFile(detail.resume_id)}>查看原件</button>
+              <button className="btn ghost" onClick={() => openData(detail.resume_id)}>查看解析数据</button>
+              <button className="btn ghost" onClick={() => onReparse(detail.resume_id)}>重新解析</button>
+            </div>
+            {detail.parse_status === 'failed' && (
+              <div className="error-text">解析失败：{detail.parse_error || '未知原因'}</div>
+            )}
+            {lowQuality && (
+              <div className="warn-text">解析质量提示：正文 {q.text_chars} 字、实体 {q.entity_count} 条
+                {q.like_resume ? '' : '，且内容不像简历'}——可能是扫描件/图片型文件，建议重新解析或换文件</div>
+            )}
+            <div className="field-label">抽取实体（来源：{detail.entities?.[0]?.source || '—'}）</div>
+            <div>
+              {detail.entities?.length
+                ? detail.entities.map((e, i) => (
+                  <span key={i} className="chip">{FIELD_TEXT[e.field_key] || e.field_key}：{e.field_value}</span>
+                ))
+                : <span className="muted">（暂无实体）</span>}
+            </div>
+            <div className="field-label">原文预览（前 500 字）</div>
+            <div className="muted" style={{ whiteSpace: 'pre-wrap' }}>{detail.raw_text || '（无）'}</div>
           </div>
-          <div className="field-label">原文预览（前 500 字）</div>
-          <div className="muted" style={{ whiteSpace: 'pre-wrap' }}>{detail.raw_text || '（无）'}</div>
         </div>
       )}
 
       {data && (
-        <div className="card">
-          <h3>解析数据 · {data.file_name}</h3>
-          <div className="row">
-            <span className="chip">正文 {data.stats.text_chars} 字</span>
-            <span className="chip">实体 {data.stats.entity_count} 条</span>
-            <span className="chip ok">BERT {data.stats.bert_count}</span>
-            <span className="chip unknown">规则 {data.stats.rule_count}</span>
-            <span className="chip">向量 {data.matching.vector_dim} 维</span>
-            <span className="chip">模长 {data.matching.vector_norm}</span>
+        <div className="modal-overlay" onClick={closeModal}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-head">
+              <h3>解析数据 · {data.file_name}</h3>
+              <button className="btn ghost" onClick={() => setData(null)}>返回详情</button>
+              <button className="modal-close" title="关闭（Esc）" onClick={closeModal}>×</button>
+            </div>
+            <div className="row">
+              <span className="chip">正文 {data.stats.text_chars} 字</span>
+              <span className="chip">实体 {data.stats.entity_count} 条</span>
+              <span className="chip ok">BERT {data.stats.bert_count}</span>
+              <span className="chip unknown">规则 {data.stats.rule_count}</span>
+              <span className="chip">向量 {data.matching.vector_dim} 维</span>
+              <span className="chip">模长 {data.matching.vector_norm}</span>
+            </div>
+            <div className="field-label">匹配输入（structured_text，语义编码真正的对象）</div>
+            <div className="mono-text">{data.matching.structured_text}</div>
+            <div className="field-label">向量预览（前 8 维 / 共 {data.matching.vector_dim} 维）</div>
+            <div className="mono-text">[{data.matching.vector_preview.join(', ')}]</div>
+            <div className="field-label">实体明细（含来源）</div>
+            {data.entities.length
+              ? data.entities.map((e, i) => (
+                <span key={i} className={`chip ${e.source === 'bert' ? 'ok' : 'unknown'}`}>
+                  {FIELD_TEXT[e.field_key] || e.field_key}：{e.field_value} · {e.source}
+                </span>
+              ))
+              : <span className="muted">（暂无实体）</span>}
+            <div className="field-label">解析全文（{data.stats.text_chars} 字）</div>
+            <details>
+              <summary className="muted" style={{ cursor: 'pointer' }}>展开/收起全文</summary>
+              <div className="muted" style={{ whiteSpace: 'pre-wrap' }}>{data.raw_text}</div>
+            </details>
           </div>
-          <div className="field-label">匹配输入（structured_text，语义编码真正的对象）</div>
-          <div className="mono-text">{data.matching.structured_text}</div>
-          <div className="field-label">向量预览（前 8 维 / 共 {data.matching.vector_dim} 维）</div>
-          <div className="mono-text">[{data.matching.vector_preview.join(', ')}]</div>
-          <div className="field-label">实体明细（含来源）</div>
-          {data.entities.length
-            ? data.entities.map((e, i) => (
-              <span key={i} className={`chip ${e.source === 'bert' ? 'ok' : 'unknown'}`}>
-                {FIELD_TEXT[e.field_key] || e.field_key}：{e.field_value} · {e.source}
-              </span>
-            ))
-            : <span className="muted">（暂无实体）</span>}
-          <div className="field-label">解析全文（{data.stats.text_chars} 字）</div>
-          <details>
-            <summary className="muted" style={{ cursor: 'pointer' }}>展开/收起全文</summary>
-            <div className="muted" style={{ whiteSpace: 'pre-wrap' }}>{data.raw_text}</div>
-          </details>
         </div>
       )}
     </div>

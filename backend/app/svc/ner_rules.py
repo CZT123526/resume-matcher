@@ -34,7 +34,7 @@ SKILL_DICT = [
 
 _NAME_RE = re.compile(r"姓名\s*[:：]\s*([一-龥·]{2,4})")
 _SCHOOL_RE = re.compile(
-    r"([一-龥]{2,12}?(?:大学|学院|学校)|[A-Za-z][A-Za-z\s&\.]{2,30}University)"
+    r"([一-龥]{2,12}?(?:大学|学院|学校)(?!生)|[A-Za-z][A-Za-z\s&\.]{2,30}University)"
 )
 _TITLE_RE = re.compile(
     r"(?:求职意向|应聘岗位|职位|岗位|担任|任职)\s*[:：]?\s*"

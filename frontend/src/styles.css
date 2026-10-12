@@ -103,3 +103,20 @@ tr.clickable:hover { background: var(--gray-weak); }
 .progress-line > div { background: var(--primary); height: 100%; transition: width .4s; }
 .field-label { font-size: 13px; color: var(--muted); margin: 10px 0 4px; }
 .empty { text-align: center; color: var(--muted); padding: 28px 0; font-size: 14px; }
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(15, 23, 42, 0.45);
+  display: flex; align-items: flex-start; justify-content: center;
+  padding: 5vh 16px 16px; z-index: 50; overflow-y: auto;
+}
+.modal {
+  background: var(--card); border-radius: 12px; width: 100%; max-width: 760px;
+  padding: 18px 20px; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+}
+.modal-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.modal-head h3 { margin: 0; font-size: 15px; flex: 1; }
+.modal-close {
+  border: none; background: var(--gray-weak); color: var(--muted);
+  width: 30px; height: 30px; border-radius: 8px; cursor: pointer;
+  font-size: 16px; line-height: 1; flex-shrink: 0;
+}
+.modal-close:hover { background: var(--red-weak); color: var(--red); }
