@@ -86,6 +86,20 @@ def cosine_rank(jd_vector: np.ndarray, top_k: int) -> list[dict[str, Any]]:
     raise NotImplementedError("S06 待实现")
 
 
+def hybrid_rank(jd_vector: np.ndarray, lex_scores: dict[int, float],
+                top_k: int, alpha: float) -> list[dict[str, Any]]:
+    """S06b 关键词重排排序（T34）：融合分 = α·语义分 + (1-α)·词面分 后取 Top-K。
+
+    入参: jd_vector 单条岗位向量;
+          lex_scores {resume_id: 词面命中率0~1}（缺失的 resume_id 按中性 0.5 计）;
+          top_k 返回条数; alpha 融合系数（1.0 退化为纯语义）。
+    出参: [{"resume_id": int, "score": float(0~1, 4位小数)}, ...] 按 score 降序。
+    词面分来源: svc/lexical.py（keyword_hit_score，与编码同源 structured_text）。
+    实现: svc/ranking.py（M02）
+    """
+    raise NotImplementedError("S06b 待实现")
+
+
 def compute_evidence(jd_reqs: dict[str, Any], resume_entities: list[dict[str, str]]) -> list[str]:
     """S07 生成证据链文本（只解释、不改分数——打分与解释分离）。
 
