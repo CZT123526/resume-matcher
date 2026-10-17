@@ -1,29 +1,30 @@
 {
-  "n_pairs": 852,
-  "n_queries": 23,
+  "n_pairs": 708,
+  "n_queries": 21,
   "n_resumes": 112,
   "groups": {
     "BERT语义匹配": {
-      "ndcg@10": 0.557,
-      "p@5": 0.4696,
-      "queries": 23,
+      "ndcg@10": 0.5759,
+      "p@5": 0.4476,
+      "queries": 21,
       "encoder": "bert",
-      "rank_seconds": 4.317,
+      "encoder_id": "models/bert_domain",
+      "rank_seconds": 4.313,
       "note": ""
     },
     "TF-IDF基线": {
-      "ndcg@10": 0.9336,
-      "p@5": 0.9043,
-      "queries": 23,
-      "rank_seconds": 0.091
+      "ndcg@10": 0.9748,
+      "p@5": 0.9429,
+      "queries": 21,
+      "rank_seconds": 0.112
     },
     "DeepSeek零样本": {
-      "ndcg@10": 0.9732,
-      "p@5": 0.9913,
-      "queries": 23,
+      "ndcg@10": 1.0,
+      "p@5": 1.0,
+      "queries": 21,
       "model": "deepseek-chat",
       "failed_calls": 0,
-      "cost_note": "约 852 次调用（命中缓存不重复计费）"
+      "cost_note": "约 708 次调用（命中缓存不重复计费）"
     }
   }
 }
