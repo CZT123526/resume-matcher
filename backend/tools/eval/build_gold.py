@@ -1,13 +1,19 @@
-"""金标准构造（算法设计 §5，D6；v2 规则见 T32）：期望岗位即免费监督信号。
+"""金标准构造（算法设计 §5，D6；v2 规则见 T32，v2.1 细分白名单见 T33）：期望岗位即免费监督信号。
 
 正样本判定（按简历类型分路径）：
   模板简历（文件名「姓名_角色.docx」可解析）：用**文件名角色**做匹配依据——
     角色是批量生成器写入的真实岗位元数据，比 NER 实体可靠（T32 抽检发现
     实体层混有「负责人/队员/手册认证/软件设计师」等噪声，且语言前缀在实体中丢失）；
   其他简历（如真实上传）：沿用 title 实体匹配（v1 行为）。
-匹配判定：核心语义互含（剥通用后缀）**且无技术栈冲突**——残留词互斥
-  （如 python vs java）则判不匹配，杜绝「Python 简历 × Java 岗位」跨栈误配。
-
+匹配判定（三层递进）：
+  ① 核心语义相等；
+  ② 互含且短核心带个性词（java ⊂ java后端）——冲突否决兜底（python vs java 互斥判否）；
+  ③ 互含但短核心纯通用（数据 ⊂ 大数据 / 算法 ⊂ 大模型算法）——必须过**细分白名单**：
+    长核心去掉短核心后的修饰词 ∈ _SPECIALIZATION[短核心] 才认。v2 的教训：
+    纯通用短核心的字符串互含会把「数据分析师×大数据开发」「测试开发×渗透测试」
+    这类同家族不同工种误配（T33 人工标注 100 对实锤 7 处，全部属于此病灶），
+    白名单让「算法×大模型算法」这类合法 specialization 保留、其余一律判否；
+  bigram 弱匹配层仅当**两侧个性残留都非空**才启用（新媒体运营×新媒体内容运营）。
 负采样：该 JD 下非正样本的简历随机抽 5×正样本数，seed=42 可复现；
 产物：backend/tools/eval/gold.jsonl，每行 {"jd_id", "resume_id", "rel": 0|1}。
 
@@ -57,6 +63,27 @@ _GENERIC_TOKENS = ["工程师", "分析师", "设计师", "架构师", "开发",
 #     算法 vs 大模型算法 → 残留 "" vs "大模型" → 空一侧不判冲突（通用角色可匹配细分岗）
 _DOMAIN_GENERIC = ["后端", "前端", "算法", "数据", "测试", "运维", "分析", "设计", "内容", "运营", "开发"]
 
+# 细分白名单（T33 v2.1）：短核心纯通用时，长核心去掉短核心后的修饰词必须在此表内
+# 才算合法 specialization。人工标注 100 对校准：修「数据分析师×大数据开发」
+# 「测试开发×渗透测试/硬件测试」同家族不同工种误配，同时保留「算法×大模型算法」。
+_SPECIALIZATION = {
+    "算法": ["大模型", "推荐", "机器学习", "深度学习", "图像", "nlp", "风控", "ai"],
+    "数据": ["商业"],
+    "后端": ["java", "python", "go", "golang", "c++", "php", ".net", "node", "web"],
+    "前端": ["web", "h5", "js", "react", "vue"],
+    "测试": ["性能", "自动化", "功能", "软件"],
+    "运维": ["sre", "网络", "系统", "linux"],
+    "运营": ["新媒体", "内容", "用户"],
+    "产品": ["助理", "实习"],
+    "设计": ["ui", "ux", "视觉", "交互"],
+}
+
+
+def _specializes(long_core: str, short_core: str) -> bool:
+    """长核心去掉短核心后的修饰词是否属于短核心的合法细分（白名单）。"""
+    extra = long_core.replace(short_core, "", 1).strip("（）()方向-—· ")
+    return extra in _SPECIALIZATION.get(short_core, [])
+
 
 def _core(title: str) -> str:
     """剥离通用后缀词后的核心语义（如 后端开发工程师→后端、数据分析师→数据）"""
@@ -93,24 +120,45 @@ def _filename_role(file_name: str) -> str | None:
     return m.group(1) if m else None
 
 
-def _positive(jd_title: str, candidates: list[str]) -> bool:
-    """核心语义互含（且无技术栈冲突）即匹配；再退化为无冲突的 bigram。
+def _match_core(rc: str, jc: str) -> bool:
+    """核心层匹配（v2.1）：相等 / 带个性短核心互含（冲突否决）/ 纯通用短核心走白名单。"""
+    if rc == jc:
+        return True
+    if rc in jc:
+        short, long_ = rc, jc
+    elif jc in rc:
+        short, long_ = jc, rc
+    else:
+        return False
+    if _residual(short):
+        # 短核心带个性词（java ⊂ java后端）：冲突否决兜底即可
+        return not _conflict(rc, jc)
+    # 短核心纯通用（数据 ⊂ 大数据）：必须过细分白名单
+    return _specializes(long_, short)
 
-    课程级近似，人工抽检兜底（tools/eval/spotcheck_gold.py 全量复核）。
+
+def _positive(jd_title: str, candidates: list[str]) -> bool:
+    """三层递进：核心相等 → 互含（冲突否决/细分白名单）→ 双个性残留的 bigram。
+
+    课程级近似，人工抽检兜底（tools/eval/spotcheck_gold.py 全量复核 +
+    docs/eval/human_check_report.md 人工一致率报告）。
     """
     jc = _core(jd_title)
     jt = jd_title.lower()
     for t in candidates:
         t = t.lower()
         rc = _core(t)
-        # 核心互含（"后端" ⊂ "Python后端"），但 python后端 × java后端 这类
-        # 残留互斥的判不匹配（T32 v2 冲突否决）
-        if rc and jc and (rc in jc or jc in rc) and not _conflict(rc, jc):
+        if not rc or not jc:
+            continue
+        if _match_core(rc, jc):
             return True
-        # bigram 兜底同样过冲突检查
-        for i in range(len(rc or t) - 1):
-            if (rc or t)[i : i + 2] in (jc or jt) and not _conflict(rc or t, jc or jt):
-                return True
+        # bigram 兜底仅当两侧个性残留都非空（纯通用核心的 bigram 就是通用词本身，
+        # 会复现「测试 ⊂ 渗透测试」误配——T33 起禁用）
+        rb, jb = _residual(rc), _residual(jc)
+        if rb and jb:
+            for i in range(len(rb) - 1):
+                if rb[i : i + 2] in jb and not _conflict(rc, jc):
+                    return True
     return False
 
 

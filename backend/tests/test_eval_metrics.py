@@ -28,9 +28,21 @@ class TestGoldPositive:
         assert not _positive("数据分析师", ["平面设计师"])
         assert _positive("数据分析师", ["数据分析师", "数据分析专员"])
 
-    def test_fallback_bigram_when_all_generic(self):
-        # 全是通用词时回退原文 bigram（如 title 就是"开发"）
-        assert _positive("开发工程师", ["开发"])
+    def test_pure_generic_core_needs_specialization(self):
+        # T33 v2.1：短核心纯通用时必须过细分白名单——同家族不同工种不再误配
+        assert not _positive("大数据开发工程师", ["数据分析师"])      # 数据 ⊂ 大数据 ≠ 同岗
+        assert not _positive("数据仓库工程师", ["数据分析师"])        # 数仓是工程岗
+        assert not _positive("信息安全工程师（渗透测试方向）", ["测试开发工程师"])  # 安全≠测试
+        assert not _positive("硬件测试工程师", ["测试开发工程师"])    # 硬件≠软件测试
+        assert not _positive("开发工程师", ["开发"])                  # 全通用 title 无核心，不配
+
+    def test_specialization_whitelist(self):
+        # 白名单内的合法 specialization 保留
+        assert _positive("大模型算法工程师", ["算法工程师"])          # 算法→大模型
+        assert _positive("推荐算法工程师", ["算法工程师"])            # 算法→推荐
+        assert _positive("前端开发工程师（React方向）", ["前端开发工程师"])  # 前端→react
+        assert _positive("数据分析师", ["商业数据分析师"])            # 数据→商业
+        assert not _positive("大数据开发工程师", ["算法工程师"])      # 白名单外修饰词判否
 
 
 class TestNdcg:

@@ -13,6 +13,7 @@
 红线复查：实验代码只在 tools/ 下，backend/app/ 零外部 API 调用（TC-API-01）。
 """
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -121,10 +122,14 @@ def main() -> int:
 
     # 本文方法：BERT（或其降级路径，如实记录）
     bert_ranking, encoder_kind, elapsed = rank_bert(jd_texts, resume_texts)
+    # 编码器身份入册：忘设 BERT_MODEL_PATH 会静默退回底座 bert-base-chinese，
+    # 数字口径就错了——打出来 + 写进 metrics，杜绝"不知道自己跑的是哪个模型"（T33 教训）
+    encoder_id = os.getenv("BERT_MODEL_PATH", "bert-base-chinese（默认底座）")
+    print(f"编码器: BERT_MODEL_PATH={encoder_id}")
     ndcg, p5, n_eval = evaluate_group(bert_ranking, gold)
     metrics["groups"]["BERT语义匹配"] = {
         "ndcg@10": round(ndcg, 4), "p@5": round(p5, 4), "queries": n_eval,
-        "encoder": encoder_kind, "rank_seconds": round(elapsed, 3),
+        "encoder": encoder_kind, "encoder_id": encoder_id, "rank_seconds": round(elapsed, 3),
         "note": "" if encoder_kind == "bert" else "BERT 不可用，主链路已降级 TF-IDF——如实记录",
     }
     print(f"本文方法({encoder_kind}): NDCG@10={ndcg:.4f}  P@5={p5:.4f}  排序耗时 {elapsed:.2f}s")
