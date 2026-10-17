@@ -34,6 +34,8 @@ def extract_entities_bert(text: str) -> list[dict[str, str]]:
     出参: [{"field_key": "name", "field_value": "张三"}, ...]
           field_key ∈ ENTITY_KEYS（见 app/schemas/resume.py），
           同一字段多值时输出多条（如多个 skill）。
+    合并: BERT 优先、字段级规则兜底；例外——「求职意向/应聘岗位」显式字段行的
+          title 不受字段覆盖限制，值级去重后强制并入（T35，最准岗位信号）。
     实现: svc/ner.py（M01）
     """
     raise NotImplementedError("S02 待实现")

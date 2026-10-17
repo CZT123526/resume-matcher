@@ -54,6 +54,21 @@ def _extract_min_years(text: str) -> int | None:
     return min(max(min(years), 0), 30)  # 下限语义，异常大值截断
 
 
+# 行首「职责标签：」是条目的栏目名（"1、数据分析：每日盯店铺核心数据"里的"数据分析"），
+# 不是技能要求；技能词典在整篇文本上会命中它（T35）——先把标签段遮掉再匹配。
+# 允许 "1、" 式编号前缀；值必须是词典词的场景形如"（1）SQL 必须熟练"以括号开头，不受影响。
+_DUTY_LABEL_RE = re.compile(
+    r"(?m)^(?:\d{1,2}[、.．]\s*)?([一-龥A-Za-z0-9][一-龥A-Za-z0-9/#.＋\s]{0,14})(?=[：:])"
+)
+
+
 def _extract_skills(text: str) -> list[str]:
-    """匹配忽略大小写，存储保留词典展示大小写（证据链显示效果与契约示例一致）"""
-    return match_skills(text)[:20]
+    """匹配忽略大小写，存储保留词典展示大小写（证据链显示效果与契约示例一致）。
+
+    行首职责标签先遮蔽再匹配（T35）：标签词恰好落在技能词典里时（数据分析/测试等），
+    会把"职责栏目名"当成"岗位要求的技能"灌进 req_json，污染下游词面重排的关键词。
+    """
+    masked = _DUTY_LABEL_RE.sub(
+        lambda m: m.group(0).replace(m.group(1), " " * len(m.group(1))), text
+    )
+    return match_skills(masked)[:20]

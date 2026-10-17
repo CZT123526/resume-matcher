@@ -8,9 +8,9 @@
 | 编号 | 名称 | 说明 | 负责人 | 状态 | 备注 |
 |---|---|---|---|---|---|
 | S01 | parse_document(file_bytes, filename) -> {"text": str} | PDF/DOCX 提取纯文本；不支持的类型抛 E4002 | 成员A | 已完成 | `744d0dd`；pypdf+python-docx(含表格)，扫描件E4001可读提示；`95f1591` 2026-10-11 增文本框(txbxContent)解析与双份存储去重 |
-| S02 | extract_entities_bert(text) -> list[{field_key, field_value, source}] | 本地BERT NER推理（7类实体见算法设计§1），运行时唯一抽取来源 | 成员A | 已完成 | `744d0dd` 调度层+规则兜底；`32901d8` 字段级合并(模型无标签字段由规则补)；`95f1591` 2026-10-11 并发懒加载竞态修复(双检锁)；T29.2 原文依据校验(词碎片/跨行粘连丢弃)+学历判不出即丢弃+技能词边界匹配(tools/audit_consistency.py 可复审计) |
+| S02 | extract_entities_bert(text) -> list[{field_key, field_value, source}] | 本地BERT NER推理（7类实体见算法设计§1），运行时唯一抽取来源 | 成员A | 已完成 | `744d0dd` 调度层+规则兜底；`32901d8` 字段级合并(模型无标签字段由规则补)；`95f1591` 2026-10-11 并发懒加载竞态修复(双检锁)；T29.2 原文依据校验(词碎片/跨行粘连丢弃)+学历判不出即丢弃+技能词边界匹配(tools/audit_consistency.py 可复审计)；T35 求职意向显式行 title 强制并入(不受字段覆盖限制，口语化简历证书误标高发) |
 | S03 | train_ner(data_dir, output_dir) -> {f1, precision, recall} | NER微调：简历领域标注集(主)+CLUENER(辅)，Colab执行 | 成员A | 进行中 | `32901d8` 物料全就绪(数据集管道实跑通过+训练脚本+指标)；训练执行待Colab(待拍板#2) |
-| S04 | build_jd_requirements(jd_text) -> {degree, min_years, skills} | 规则+NER 抽取JD结构化要求（学历/年限/技能列表） | 成员B | 已完成 | `2698613`；区间取下限/中文数字/展示大小写；T29.2 技能抽取共用 match_skills 词边界匹配 |
+| S04 | build_jd_requirements(jd_text) -> {degree, min_years, skills} | 规则+NER 抽取JD结构化要求（学历/年限/技能列表） | 成员B | 已完成 | `2698613`；区间取下限/中文数字/展示大小写；T29.2 技能抽取共用 match_skills 词边界匹配；T35 行首职责标签遮蔽(「1、数据分析：…」的栏目名不再混进 req.skills) + tools/reparse_jds.py 存量重导出(45条仅2条变化) |
 | S05 | embed_texts(texts) -> np.ndarray(归一化) | BERT 语义编码（JD与简历文本向量化，批量CPU推理） | 成员B | 已完成 | `2698613`；svc/embedding.py get_encoder，BERT主路+TF-IDF降级 |
 | S06 | cosine_rank(jd_vector, top_k) -> [{resume_id, score}] | numpy 矩阵余弦相似度排名，score∈0~1 降序（读 vectors.npy 缓存） | 成员B | 已完成 | `2698613`；score=(1+cos)/2 四位小数；T34 起为消融对照路（纯语义） |
 | S06b | hybrid_rank(jd_vector, lex_scores, top_k, alpha) -> [{resume_id, score}] | 关键词重排（T34）：融合分=α·语义+(1-α)·词面命中率，词面分由 svc/lexical.py 按编码同源 structured_text 计算，缺失按中性0.5 | 成员B | 已完成 | run_match_pipeline 主链路；α 见算法设计 §3.2（v2.1 金标准扫描选定） |

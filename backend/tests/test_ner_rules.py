@@ -78,6 +78,34 @@ def test_normalize_value_strips_cjk_latin_boundary_spaces():
     assert normalize_value("skill", "Spring Boot") == "springboot"  # 纯英文内部空格保留再小写
 
 
+def test_intent_title_helper():
+    """T35：求职意向锚定对外口——黑名单值返回 None，CJK英数交界空格归一"""
+    from app.svc import ner_rules
+    assert ner_rules.intent_title("求职意向：电商运营") == "电商运营"
+    assert ner_rules.intent_title("应聘岗位： 数据工程师") == "数据工程师"
+    assert ner_rules.intent_title("求职意向：ai 应用实习岗") == "ai应用实习岗"
+    assert ner_rules.intent_title("姓名：张三\n电话：13800000000") is None
+
+
+def test_merge_rule_fallback_forces_intent_title():
+    """T35：BERT 误标 title（证书词等）时，求职意向行的正主岗位仍要并入"""
+    from app.svc.ner import _merge_rule_fallback
+    text = "求职意向：电商运营\n技能证书\n生意参谋 千牛 Excel\n电子商务师（中级）"
+    ents = [{"field_key": "title", "field_value": "电子商务师", "source": "bert"}]
+    merged = _merge_rule_fallback(ents, text)
+    titles = [e["field_value"] for e in merged if e["field_key"] == "title"]
+    assert "电子商务师" in titles
+    assert "电商运营" in titles
+
+
+def test_merge_rule_fallback_no_duplicate():
+    """求职意向值已存在（无论来源）时不重复并入"""
+    from app.svc.ner import _merge_rule_fallback
+    ents = [{"field_key": "title", "field_value": "电商运营", "source": "rule"}]
+    merged = _merge_rule_fallback(ents, "求职意向：电商运营")
+    assert [e["field_value"] for e in merged if e["field_key"] == "title"].count("电商运营") == 1
+
+
 def test_bert_spans_need_line_basis(monkeypatch):
     """回归（T29.2）：BERT 词碎片（##ot）与跨行粘连串不得落库，同行片段照常保留"""
     from app.svc import ner

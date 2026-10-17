@@ -46,6 +46,18 @@ _TITLE_RE = re.compile(
 _TITLE_INTENT_RE = re.compile(
     r"(?:求职意向|应聘岗位)\s*[:：]\s*([一-龥A-Za-z0-9][一-龥A-Za-z0-9 \t]{0,24})"
 )
+
+
+def intent_title(text: str) -> str | None:
+    """求职意向/应聘岗位显式字段行的值（T30.3 锚定的对外口，T35 起 ner.py 强制合并用）。
+
+    这是简历里最准的求职岗位信号；经 normalize_value 走职位黑名单，
+    黑名单值（政治面貌等）返回 None。
+    """
+    m = _TITLE_INTENT_RE.search(text)
+    if m is None:
+        return None
+    return normalize_value("title", m.group(1).strip())
 _COMPANY_RE = re.compile(
     r"([一-龥A-Za-z0-9]{2,20}?(?:有限公司|股份有限公司|集团|科技公司|信息技术公司|银行))"
 )
