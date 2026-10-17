@@ -1,12 +1,14 @@
-"""匹配任务流水线（后台任务）：缓存就绪 → JD 编码 → 排名 → 证据链 → 落库。"""
+"""匹配任务流水线（后台任务）：缓存就绪 → JD 编码 → 重排融合 → 证据链 → 落库。"""
 import json
 import logging
 
+from app.config import settings
 from app.db import get_db
 from app.svc.evidence import compute_evidence
 from app.svc.jd_parsing import build_jd_requirements
-from app.svc.ranking import cosine_rank
-from app.svc.vectors import ensure_cache, load_query_encoder
+from app.svc.lexical import extract_jd_keywords, keyword_hit_score
+from app.svc.ranking import hybrid_rank
+from app.svc.vectors import _current_resume_data, ensure_cache, load_query_encoder, structured_text
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +68,16 @@ def run_match_pipeline(task_id: int, jd_id: int, top_k: int) -> None:
         jd_vec = load_query_encoder().encode([jd_encode_text(jd["title"], req, jd["content"])])[0]
         _set(conn, "running", 75)
 
-        ranked = cosine_rank(jd_vec, top_k)
+        # T34 关键词重排：词面分对全部简历先算好再融合（top-k 截断之前），
+        # 词面核查对象与编码同源（structured_text），评测与线上同口径
+        keywords = extract_jd_keywords(jd["title"], req)
+        resume_texts = {
+            rid: structured_text(item) for rid, item in _current_resume_data().items()
+        }
+        lex_scores = {
+            rid: keyword_hit_score(keywords, text) for rid, text in resume_texts.items()
+        }
+        ranked = hybrid_rank(jd_vec, lex_scores, top_k, alpha=settings.MATCH_ALPHA)
         _set(conn, "running", 85)
 
         rows = []

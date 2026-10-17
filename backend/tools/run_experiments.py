@@ -1,14 +1,15 @@
-"""M04 三组对比实验统一入口（算法设计 §7）。
+"""M04 对比实验统一入口（算法设计 §7；T34 起四组）。
 
 同测试集、同金标准、固定 seed，唯一变量是方法：
-  本文方法   BERT 语义匹配（svc 主链路同款编码器）
+  本文方法   BERT 语义 + 关键词重排融合（svc 主链路同款，T34）
+  消融       纯 BERT 语义匹配（本文方法去掉重排层）
   对照组一   TF-IDF + 余弦（tools/baselines/tfidf_baseline.py）
   对照组二   DeepSeek 零样本（tools/baselines/deepseek_zeroshot.py，无 key 自动跳过）
 
 用法（backend 目录下）：
-  python tools/run_experiments.py
+  BERT_MODEL_PATH=models/bert_domain python tools/run_experiments.py
 产物：
-  docs/eval/metrics.json   各组 NDCG@10 / P@5 / 排序耗时
+  docs/eval/metrics.json   各组 NDCG@10 / P@5 / 排序耗时 / α 扫描
   docs/eval/ndcg_chart.png 对比柱状图
 红线复查：实验代码只在 tools/ 下，backend/app/ 零外部 API 调用（TC-API-01）。
 """
@@ -41,8 +42,11 @@ def load_or_build_gold() -> list[dict]:
     return pairs
 
 
-def load_corpus() -> tuple[dict[int, str], dict[int, str]]:
-    """与主系统完全一致的简历/JD 编码文本（唯一变量是编码器）"""
+def load_corpus() -> tuple[dict[int, str], dict[int, str], dict[int, tuple[str, dict]]]:
+    """与主系统完全一致的简历/JD 编码文本（唯一变量是编码器）。
+
+    第三返回值 jd_meta = {jd_id: (title, req)}，供 T34 词面重排取关键词。
+    """
     from app.db import get_db
     from app.svc.match_pipeline import jd_encode_text
     from app.svc.vectors import _current_resume_data, structured_text
@@ -55,11 +59,12 @@ def load_corpus() -> tuple[dict[int, str], dict[int, str]]:
         jd_rows = conn.execute("SELECT id, title, content, req_json FROM jds").fetchall()
     finally:
         conn.close()
+    jd_meta = {r["id"]: (r["title"], json.loads(r["req_json"] or "{}")) for r in jd_rows}
     jd_texts = {
         r["id"]: jd_encode_text(r["title"], json.loads(r["req_json"] or "{}"), (r["content"] or "")[:500])
         for r in jd_rows
     }
-    return resume_texts, jd_texts
+    return resume_texts, jd_texts, jd_meta
 
 
 def rank_bert(jd_texts: dict[int, str], resume_texts: dict[int, str]) -> tuple[dict[int, list[tuple[int, float]]], str, float]:
@@ -81,6 +86,28 @@ def rank_bert(jd_texts: dict[int, str], resume_texts: dict[int, str]) -> tuple[d
         scores = np.clip((1.0 + sims[row]) / 2.0, 0.0, 1.0)
         result[jid] = sorted(zip(rids, scores.round(4)), key=lambda p: p[1], reverse=True)
     return result, encoder.kind, elapsed
+
+
+def rank_fusion(jd_meta: dict[int, tuple[str, dict]], resume_texts: dict[int, str],
+                bert_ranking: dict[int, list[tuple[int, float]]], alpha: float
+                ) -> dict[int, list[tuple[int, float]]]:
+    """T34 关键词重排：融合分 = α·BERT语义 + (1-α)·词面命中率，重排全部简历。
+
+    与线上 run_match_pipeline 同口径：词面核查对象同为 structured_text，
+    关键词同为 (JD 标题内容词 + req.skills)；α=1.0 时退化为纯语义。
+    """
+    from app.svc.lexical import extract_jd_keywords, fuse, keyword_hit_score
+
+    out: dict[int, list[tuple[int, float]]] = {}
+    for jid, scored in bert_ranking.items():
+        title, req = jd_meta.get(jid, ("", {}))
+        kws = extract_jd_keywords(title, req)
+        fused = [
+            (rid, round(fuse(b, keyword_hit_score(kws, resume_texts[rid]), alpha), 4))
+            for rid, b in scored
+        ]
+        out[jid] = sorted(fused, key=lambda p: p[1], reverse=True)
+    return out
 
 
 def evaluate_group(ranking: dict[int, list[tuple[int, float]]], gold: list[dict], k_ndcg: int = 10, k_p: int = 5) -> tuple[float, float, int]:
@@ -112,7 +139,7 @@ def main() -> int:
     if not gold:
         print("金标准为空：库内缺 JD 或缺带 title 实体的简历")
         return 1
-    resume_texts, jd_texts = load_corpus()
+    resume_texts, jd_texts, jd_meta = load_corpus()
     n_queries = len({p["jd_id"] for p in gold})
     print(f"金标准 {len(gold)} 对 / {n_queries} 个 JD 查询 / 简历库 {len(resume_texts)} 份")
     if n_queries < 5:
@@ -127,12 +154,13 @@ def main() -> int:
     encoder_id = os.getenv("BERT_MODEL_PATH", "bert-base-chinese（默认底座）")
     print(f"编码器: BERT_MODEL_PATH={encoder_id}")
     ndcg, p5, n_eval = evaluate_group(bert_ranking, gold)
+    base_note = "" if encoder_kind == "bert" else "BERT 不可用，主链路已降级 TF-IDF——如实记录"
     metrics["groups"]["BERT语义匹配"] = {
         "ndcg@10": round(ndcg, 4), "p@5": round(p5, 4), "queries": n_eval,
         "encoder": encoder_kind, "encoder_id": encoder_id, "rank_seconds": round(elapsed, 3),
-        "note": "" if encoder_kind == "bert" else "BERT 不可用，主链路已降级 TF-IDF——如实记录",
+        "note": (base_note + "；" if base_note else "") + "T34 起为消融对照（本文方法去掉关键词重排层）",
     }
-    print(f"本文方法({encoder_kind}): NDCG@10={ndcg:.4f}  P@5={p5:.4f}  排序耗时 {elapsed:.2f}s")
+    print(f"消融·纯语义({encoder_kind}): NDCG@10={ndcg:.4f}  P@5={p5:.4f}  排序耗时 {elapsed:.2f}s")
 
     # 对照组一：TF-IDF
     t0 = time.perf_counter()
@@ -175,6 +203,30 @@ def main() -> int:
         metrics["groups"]["DeepSeek零样本"] = {"skipped": True, "reason": "未配置 DEEPSEEK_API_KEY（见工作日志待拍板 #1）"}
         print("对照组二(DeepSeek): 跳过——未配置 DEEPSEEK_API_KEY")
 
+    # 本文方法（完整版）：语义 + 关键词重排融合（T34）
+    from app.config import settings
+
+    alpha = settings.MATCH_ALPHA
+    t0 = time.perf_counter()
+    fusion_ranking = rank_fusion(jd_meta, resume_texts, bert_ranking, alpha)
+    fusion_elapsed = time.perf_counter() - t0
+
+    # α 扫描（金标准上选超参；如实入册，答辩口径注明"在测试金标准上调参的局限"）
+    sweep: dict[str, float] = {}
+    for a in [round(0.1 * i, 1) for i in range(11)]:
+        nd, _, _ = evaluate_group(rank_fusion(jd_meta, resume_texts, bert_ranking, a), gold)
+        sweep[str(a)] = round(nd, 4)
+
+    ndcg, p5, n_eval = evaluate_group(fusion_ranking, gold)
+    metrics["groups"]["本文方法（语义+关键词重排）"] = {
+        "ndcg@10": round(ndcg, 4), "p@5": round(p5, 4), "queries": n_eval,
+        "alpha": alpha, "alpha_sweep": sweep, "rank_seconds": round(fusion_elapsed, 3),
+        "encoder_id": encoder_id,
+        "note": "T34 词面证据（req 技能词+JD标题内容词命中率）补充语义分；α=1.0 退化为纯语义消融",
+    }
+    print(f"本文方法(语义+关键词重排 α={alpha}): NDCG@10={ndcg:.4f}  P@5={p5:.4f}  耗时 {fusion_elapsed:.2f}s")
+    print("α 扫描（NDCG@10）: " + "  ".join(f"a={a}:{v:.4f}" for a, v in sweep.items()))
+
     (OUT_DIR / "metrics.json").write_text(
         json.dumps(metrics, ensure_ascii=False, indent=2), encoding="utf-8"
     )
@@ -200,14 +252,14 @@ def _plot(metrics: dict) -> None:
 
     x = range(len(names))
     width = 0.35
-    fig, ax = plt.subplots(figsize=(7, 4.2))
+    fig, ax = plt.subplots(figsize=(max(7.0, 2.1 * len(names)), 4.2))
     ax.bar([i - width / 2 for i in x], ndcg_vals, width, label="NDCG@10", color="#4C72B0")
     ax.bar([i + width / 2 for i in x], p_vals, width, label="P@5", color="#DD8452")
     for i, (n, p) in enumerate(zip(ndcg_vals, p_vals)):
         ax.text(i - width / 2, n + 0.01, f"{n:.3f}", ha="center", fontsize=9)
         ax.text(i + width / 2, p + 0.01, f"{p:.3f}", ha="center", fontsize=9)
     ax.set_xticks(list(x))
-    ax.set_xticklabels(names)
+    ax.set_xticklabels(names, fontsize=9)
     ax.set_ylim(0, 1.05)
     ax.set_title("匹配排序质量对比（同金标准）")
     ax.legend()

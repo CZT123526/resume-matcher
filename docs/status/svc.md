@@ -12,7 +12,8 @@
 | S03 | train_ner(data_dir, output_dir) -> {f1, precision, recall} | NER微调：简历领域标注集(主)+CLUENER(辅)，Colab执行 | 成员A | 进行中 | `32901d8` 物料全就绪(数据集管道实跑通过+训练脚本+指标)；训练执行待Colab(待拍板#2) |
 | S04 | build_jd_requirements(jd_text) -> {degree, min_years, skills} | 规则+NER 抽取JD结构化要求（学历/年限/技能列表） | 成员B | 已完成 | `2698613`；区间取下限/中文数字/展示大小写；T29.2 技能抽取共用 match_skills 词边界匹配 |
 | S05 | embed_texts(texts) -> np.ndarray(归一化) | BERT 语义编码（JD与简历文本向量化，批量CPU推理） | 成员B | 已完成 | `2698613`；svc/embedding.py get_encoder，BERT主路+TF-IDF降级 |
-| S06 | cosine_rank(jd_vector, top_k) -> [{resume_id, score}] | numpy 矩阵余弦相似度排名，score∈0~1 降序（读 vectors.npy 缓存） | 成员B | 已完成 | `2698613`；score=(1+cos)/2 四位小数 |
+| S06 | cosine_rank(jd_vector, top_k) -> [{resume_id, score}] | numpy 矩阵余弦相似度排名，score∈0~1 降序（读 vectors.npy 缓存） | 成员B | 已完成 | `2698613`；score=(1+cos)/2 四位小数；T34 起为消融对照路（纯语义） |
+| S06b | hybrid_rank(jd_vector, lex_scores, top_k, alpha) -> [{resume_id, score}] | 关键词重排（T34）：融合分=α·语义+(1-α)·词面命中率，词面分由 svc/lexical.py 按编码同源 structured_text 计算，缺失按中性0.5 | 成员B | 已完成 | run_match_pipeline 主链路；α 见算法设计 §3.2（v2.1 金标准扫描选定） |
 | S07 | compute_evidence(jd_reqs, resume_entities) -> list[str] | 证据链生成：技能重叠/学历/年限逐项比对（文案见算法设计§4），只解释不改分 | 成员B | 已完成 | `2698613`；显式学历高低映射(修严重bug后定稿) |
 | S08 | tfidf_baseline(jd_text, resume_texts) -> list[float] | 对照组一：TF-IDF+余弦 关键词基线 | 成员A | 已完成 | `a73572d`；实际入口 tools/baselines/tfidf_baseline.rank_for_jds，文本构造复用主系统 |
 | S09 | deepseek_zeroshot(jd_text, resume_text) -> {score, reason} | 对照组二：DeepSeek零样本匹配（仅tools/离线脚本，禁入app/） | 成员A | 已完成 | `a73572d`；DeepSeekScorer，3次退避重试+jsonl缓存，无key干净跳过 |

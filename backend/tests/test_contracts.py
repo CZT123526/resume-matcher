@@ -48,7 +48,7 @@ def test_svc_contracts_all_defined():
 
     expected = [
         "parse_document", "extract_entities_bert", "train_ner",
-        "build_jd_requirements", "embed_texts", "cosine_rank", "compute_evidence",
+        "build_jd_requirements", "embed_texts", "cosine_rank", "hybrid_rank", "compute_evidence",
         "tfidf_baseline", "deepseek_zeroshot", "evaluate", "generate_report",
     ]
     for name in expected:

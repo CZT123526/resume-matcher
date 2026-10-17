@@ -9,14 +9,14 @@
       "queries": 21,
       "encoder": "bert",
       "encoder_id": "models/bert_domain",
-      "rank_seconds": 4.313,
-      "note": ""
+      "rank_seconds": 2.654,
+      "note": "T34 起为消融对照（本文方法去掉关键词重排层）"
     },
     "TF-IDF基线": {
       "ndcg@10": 0.9748,
       "p@5": 0.9429,
       "queries": 21,
-      "rank_seconds": 0.112
+      "rank_seconds": 0.047
     },
     "DeepSeek零样本": {
       "ndcg@10": 1.0,
@@ -25,6 +25,28 @@
       "model": "deepseek-chat",
       "failed_calls": 0,
       "cost_note": "约 708 次调用（命中缓存不重复计费）"
+    },
+    "本文方法（语义+关键词重排）": {
+      "ndcg@10": 0.9043,
+      "p@5": 0.8476,
+      "queries": 21,
+      "alpha": 0.7,
+      "alpha_sweep": {
+        "0.0": 0.9043,
+        "0.1": 0.9043,
+        "0.2": 0.9043,
+        "0.3": 0.9043,
+        "0.4": 0.9043,
+        "0.5": 0.9043,
+        "0.6": 0.9043,
+        "0.7": 0.9043,
+        "0.8": 0.9043,
+        "0.9": 0.9043,
+        "1.0": 0.5759
+      },
+      "rank_seconds": 0.035,
+      "encoder_id": "models/bert_domain",
+      "note": "T34 词面证据（req 技能词+JD标题内容词命中率）补充语义分；α=1.0 退化为纯语义消融"
     }
   }
 }

@@ -27,6 +27,10 @@ class Settings:
     # 简历原件保存目录（相对 backend/ 目录；整个目录不入 git，删除简历时原件一并清理）
     UPLOAD_DIR = os.getenv("UPLOAD_DIR", "../db/uploads")
 
+    # 关键词重排融合系数（T34，算法设计 §3.2）：final = α·语义分 + (1-α)·词面分
+    # α=1.0 退化为纯语义（消融对照）；默认值在 v2.1 金标准上扫描选定（见 docs/eval/metrics.json）
+    MATCH_ALPHA = float(os.getenv("MATCH_ALPHA", "0.7"))
+
     # 注：DeepSeek 相关配置只存在于 backend/tools/baselines/deepseek_zeroshot.py
     # （离线对照组，直接读环境变量）——运行时配置零外部 API 引用（TC-API-01 红线）。
 
