@@ -66,3 +66,28 @@ def test_evidence_unknown_fields():
     assert "学历：未识别" in ev
     assert "经验：未识别" in ev
     assert not any(e.startswith("技能") for e in ev)
+
+
+def test_duty_label_masked_from_skills():
+    """T35：行首职责标签（"1、数据分析：…"）是栏目名不是技能，不进 req_json"""
+    req = build_jd_requirements(
+        "岗位职责：\n"
+        "1、数据分析：每日盯店铺核心数据，输出周报与复盘\n"
+        "2、活动策划：参与大促方案制定\n"
+        "任职要求：\n"
+        "1、会看生意参谋等数据后台，能从数据里发现问题"
+    )
+    assert "数据分析" not in req["skills"]
+
+
+def test_prose_skill_mention_kept():
+    """正文里的真实技能提及不受标签遮蔽影响：职责行冒号后的内容、要求段正文都保留"""
+    req = build_jd_requirements(
+        "岗位职责：\n"
+        "1、数据分析：基于SQL与Python开展客群分析\n"
+        "任职要求：\n"
+        "1、SQL必须熟练，会Python者优先\n"
+        "2、有风控策略、数据分析或反欺诈相关实习经验者优先"
+    )
+    assert "SQL" in req["skills"] and "Python" in req["skills"]
+    assert "数据分析" in req["skills"]  # 要求段正文提及保留，只有行首标签被遮

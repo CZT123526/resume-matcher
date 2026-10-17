@@ -99,12 +99,25 @@ def extract_entities_bert(text: str) -> list[dict[str, str]]:
         except Exception as exc:
             logger.warning("BERT 抽取分句失败，跳过该句: %s", exc)
 
-    # 字段级兜底合并：BERT 没抽到的字段用规则补（同字段同值去重）
+    return _merge_rule_fallback(entities, text)
+
+
+def _merge_rule_fallback(entities: list[dict[str, str]], text: str) -> list[dict[str, str]]:
+    """字段级兜底合并：BERT 没抽到的字段用规则补（同字段同值去重）。
+
+    例外（T35）：求职意向显式字段行不受"字段已被覆盖"限制，强制并入。
+    BERT 常把证书/工具误标成 title（有据但字段错），只要它产出过任意 title，
+    字段级兜底就会把「求职意向：XX」这条最准的岗位信号整体挡掉——口语化简历
+    上高发（证书行密集），症状是结构化文本里连求职岗位四个字都没有。
+    """
     covered = {e["field_key"] for e in entities}
     for e in ner_rules.extract_entities(text):
         if e["field_key"] not in covered:
             entities.append(e)
-    return _drop_fragments(entities)
+    it = ner_rules.intent_title(text)
+    if it and it not in {e["field_value"] for e in entities if e["field_key"] == "title"}:
+        entities.append({"field_key": "title", "field_value": it, "source": "rule"})
+    return entities
 
 
 def _drop_fragments(entities: list[dict[str, str]]) -> list[dict[str, str]]:
