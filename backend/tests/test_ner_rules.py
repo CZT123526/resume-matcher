@@ -87,6 +87,15 @@ def test_intent_title_helper():
     assert ner_rules.intent_title("姓名：张三\n电话：13800000000") is None
 
 
+def test_bare_yingpin_intent_anchor():
+    """T36：模板3写的是「应聘：XX」——裸「应聘」须被锚定，此前角色词整份丢失"""
+    from app.svc import ner_rules
+    assert ner_rules.intent_title("赵六\n应聘：游戏策划\n工作经历") == "游戏策划"
+    ents = ner_rules.extract_entities("赵六\n应聘：电商运营\n杭州某电商公司")
+    titles = {e["field_value"] for e in ents if e["field_key"] == "title"}
+    assert "电商运营" in titles
+
+
 def test_merge_rule_fallback_forces_intent_title():
     """T35：BERT 误标 title（证书词等）时，求职意向行的正主岗位仍要并入"""
     from app.svc.ner import _merge_rule_fallback
@@ -104,6 +113,18 @@ def test_merge_rule_fallback_no_duplicate():
     ents = [{"field_key": "title", "field_value": "电商运营", "source": "rule"}]
     merged = _merge_rule_fallback(ents, "求职意向：电商运营")
     assert [e["field_value"] for e in merged if e["field_key"] == "title"].count("电商运营") == 1
+
+
+def test_industry_skill_words_boundaries():
+    """T36：行业工具词入典——CJK 子串、ASCII 词边界，AutoCAD 不误切出 CAD"""
+    from app.svc.ner_rules import match_skills
+    got = {s.lower() for s in match_skills("熟练使用生意参谋与直通车，会AutoCAD和CAD制图，用Trados翻译")}
+    assert "生意参谋" in got and "直通车" in got
+    assert "autocad" in got and "cad" in got          # AutoCAD 整词命中
+    assert "trados" in got
+    # CAD 的 ASCII 词边界：AutoCAD 内部的 "cad" 前面是字母 o，不得单独计一次以外还漏
+    got2 = {s.lower() for s in match_skills("只用AutoCAD")}
+    assert "autocad" in got2 and "cad" not in got2     # 词边界挡住子串误切
 
 
 def test_bert_spans_need_line_basis(monkeypatch):
@@ -124,7 +145,10 @@ def test_bert_spans_need_line_basis(monkeypatch):
     assert all(not (e["field_key"] == "title") for e in ents)
     names = [e["field_value"] for e in ents if e["field_key"] == "name"]
     assert names == ["张伟"]
-    assert all(e["source"] == "bert" for e in ents)
+    # T36 行业词典扩容后，文本里的「剪映」会被规则层合法补成 skill(source=rule)——
+    # 碎片/粘连过滤管的是 BERT 侧；断言收窄为：不存在 company/title，name 正确。
+    assert all(e["field_key"] in ("name", "skill") for e in ents)
+    assert all(e["field_value"] in ("张伟", "剪映") for e in ents)
 
 
 def test_school_not_from_contest_lines():

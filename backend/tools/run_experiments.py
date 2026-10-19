@@ -1,10 +1,16 @@
-"""M04 对比实验统一入口（算法设计 §7；T34 起四组）。
+"""M04 对比实验统一入口（算法设计 §7；T34 起四组，T36 起支持编码器消融）。
 
 同测试集、同金标准、固定 seed，唯一变量是方法：
   本文方法   BERT 语义 + 关键词重排融合（svc 主链路同款，T34）
   消融       纯 BERT 语义匹配（本文方法去掉重排层）
   对照组一   TF-IDF + 余弦（tools/baselines/tfidf_baseline.py）
   对照组二   DeepSeek 零样本（tools/baselines/deepseek_zeroshot.py，无 key 自动跳过）
+
+编码器消融（T36）：env ABLATE_ENCODERS="标签=模型路径,…" 对每个编码器额外跑
+"纯语义"组（同语料同金标准，唯一变量是编码器）——底座 bert-base-chinese /
+领域继续预训练 bert_domain / 对比微调 bert_pair 三级改进链路。消融编码绕开
+向量缓存（缓存只属于主编码器），不影响主链路。
+env SKIP_DEEPSEEK=1 跳过对照组二（调试编码器时省 API 费用）。
 
 用法（backend 目录下）：
   BERT_MODEL_PATH=models/bert_domain python tools/run_experiments.py
@@ -88,6 +94,53 @@ def rank_bert(jd_texts: dict[int, str], resume_texts: dict[int, str]) -> tuple[d
     return result, encoder.kind, elapsed
 
 
+def rank_with_encoder(model_path: str, jd_texts: dict[int, str], resume_texts: dict[int, str]) -> dict[int, list[tuple[int, float]]]:
+    """指定编码器目录的纯语义排序（T36 消融专用，绕开向量缓存）。
+
+    缓存指纹绑定主编码器，消融编码器不能复用也不得污染——临时切换模块全局
+    _BERT_MODEL 构造独立实例，用完即弃；打分口径与 rank_bert 完全一致。
+    """
+    import app.svc.embedding as emb
+    from app.svc.embedding import _BertEncoder
+
+    old = emb._BERT_MODEL
+    emb._BERT_MODEL = model_path
+    try:
+        encoder = _BertEncoder()
+    finally:
+        emb._BERT_MODEL = old
+
+    rids = sorted(resume_texts)
+    jids = sorted(jd_texts)
+    mat = encoder.encode([resume_texts[r] for r in rids] + [jd_texts[j] for j in jids])
+    del encoder
+    sims = mat[len(rids):] @ mat[: len(rids)].T
+    result: dict[int, list[tuple[int, float]]] = {}
+    for row, jid in enumerate(jids):
+        scores = np.clip((1.0 + sims[row]) / 2.0, 0.0, 1.0)
+        result[jid] = sorted(zip(rids, scores.round(4)), key=lambda p: p[1], reverse=True)
+    return result
+
+
+def run_encoder_ablation(env_value: str, gold: list[dict], jd_texts: dict[int, str], resume_texts: dict[int, str], metrics: dict) -> None:
+    """ABLATE_ENCODERS="标签=模型路径,…"：每个编码器补一行纯语义消融（T36）"""
+    for pair in env_value.split(","):
+        pair = pair.strip()
+        if not pair or "=" not in pair:
+            continue
+        tag, path = pair.split("=", 1)
+        t0 = time.perf_counter()
+        ranking = rank_with_encoder(path, jd_texts, resume_texts)
+        elapsed = time.perf_counter() - t0
+        ndcg, p5, n_eval = evaluate_group(ranking, gold)
+        metrics["groups"][f"纯语义·{tag}"] = {
+            "ndcg@10": round(ndcg, 4), "p@5": round(p5, 4), "queries": n_eval,
+            "encoder_id": path, "rank_seconds": round(elapsed, 3),
+            "note": "T36 编码器消融：同语料同金标准，纯 BERT 语义（无重排）",
+        }
+        print(f"消融·纯语义[{tag}]({path}): NDCG@10={ndcg:.4f}  P@5={p5:.4f}  编码+排序耗时 {elapsed:.1f}s")
+
+
 def rank_fusion(jd_meta: dict[int, tuple[str, dict]], resume_texts: dict[int, str],
                 bert_ranking: dict[int, list[tuple[int, float]]], alpha: float
                 ) -> dict[int, list[tuple[int, float]]]:
@@ -162,6 +215,9 @@ def main() -> int:
     }
     print(f"消融·纯语义({encoder_kind}): NDCG@10={ndcg:.4f}  P@5={p5:.4f}  排序耗时 {elapsed:.2f}s")
 
+    # 编码器消融（T36）：底座 / DAPT / 对比微调三级链路，同语料同金标准
+    run_encoder_ablation(os.getenv("ABLATE_ENCODERS", ""), gold, jd_texts, resume_texts, metrics)
+
     # 对照组一：TF-IDF
     t0 = time.perf_counter()
     tfidf_ranking = rank_for_jds(jd_texts, resume_texts)
@@ -177,20 +233,39 @@ def main() -> int:
     from tools.baselines.deepseek_zeroshot import DeepSeekScorer
 
     scorer = DeepSeekScorer()
-    if scorer.available():
+    if os.getenv("SKIP_DEEPSEEK") == "1":
+        metrics["groups"]["DeepSeek零样本"] = {"skipped": True, "reason": "SKIP_DEEPSEEK=1（调试编码器时省 API 费用）"}
+        print("对照组二(DeepSeek): 跳过（SKIP_DEEPSEEK=1）")
+    elif scorer.available():
         by_jd: dict[int, dict[int, int]] = {}
         for p in gold:
             by_jd.setdefault(p["jd_id"], {})[p["resume_id"]] = p["rel"]
         ds_ranking: dict[int, list[tuple[int, float]]] = {}
         n_fail = 0
-        for jd_id, judged in by_jd.items():
-            scored = []
-            for rid in judged:
-                s = scorer.score(jd_texts[jd_id], resume_texts[rid])
+        # 并发打分（T36）：8k+ 对串行要 7h+；线程池 6 并发压到 1h 量级。
+        # 打分器按行追加缓存，坏行加载时本就跳过，并发最坏代价是单条缓存失效重评。
+        from concurrent.futures import ThreadPoolExecutor
+
+        all_pairs = [(jd_id, rid) for jd_id, judged in by_jd.items() for rid in judged]
+        workers = int(os.getenv("DEEPSEEK_WORKERS", "6"))
+        print(f"对照组二(DeepSeek): {len(all_pairs)} 对，{workers} 线程并发打分…")
+        done = 0
+
+        def _score_one(pair: tuple[int, int]) -> tuple[int, int, float | None]:
+            jid, rid = pair
+            return jid, rid, scorer.score(jd_texts[jid], resume_texts[rid])
+
+        tmp: dict[int, list[tuple[int, float]]] = {jd_id: [] for jd_id in by_jd}
+        with ThreadPoolExecutor(max_workers=workers) as ex:
+            for jid, rid, s in ex.map(_score_one, all_pairs):
+                done += 1
                 if s is None:
                     n_fail += 1
                     s = 0.0
-                scored.append((rid, s))
+                tmp[jid].append((rid, s))
+                if done % 1000 == 0:
+                    print(f"  DeepSeek {done}/{len(all_pairs)}（失败 {n_fail}）", flush=True)
+        for jd_id, scored in tmp.items():
             ds_ranking[jd_id] = sorted(scored, key=lambda x: x[1], reverse=True)
         ndcg, p5, n_eval = evaluate_group(ds_ranking, gold)
         metrics["groups"]["DeepSeek零样本"] = {
