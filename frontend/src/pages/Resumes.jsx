@@ -188,11 +188,12 @@ export default function Resumes() {
   return (
     <div>
       <div className="card">
-        <h3>上传简历（PDF / DOCX，≤10MB，支持多选）</h3>
+        <h3 title="支持 PDF / DOCX 格式，单个文件 ≤10MB，可一次选择多份">上传简历</h3>
         <div className="row">
           <input ref={fileRef} type="file" accept=".pdf,.docx" multiple disabled={busy}
             style={{ display: 'none' }} onChange={(e) => onUpload(e.target.files)} />
-          <button className="btn" disabled={busy} onClick={() => fileRef.current?.click()}>
+          <button className="btn" disabled={busy} title="支持 PDF / DOCX，单个 ≤10MB，支持多选"
+            onClick={() => fileRef.current?.click()}>
             {busy ? '上传中…' : '选择文件上传'}
           </button>
           <button className="btn ghost" disabled={refreshing} onClick={refresh}>
