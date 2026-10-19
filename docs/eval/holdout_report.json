@@ -1,0 +1,47 @@
+{
+  "design": "留出法补验：角色分层 85/15（seed=42），bert_pair 只用 85% 训练，评测仅在 15% 留出池",
+  "seed": 42,
+  "hold_ratio": 0.15,
+  "neg_ratio": 5,
+  "pool": {
+    "tagged": 1062,
+    "train": 902,
+    "held_out": 160
+  },
+  "gold": {
+    "pairs": 1230,
+    "positives": 205,
+    "queries": 46
+  },
+  "groups": {
+    "底座": {
+      "ndcg@10": 0.8524,
+      "p@5": 0.7174,
+      "queries": 46,
+      "model_path": "bert-base-chinese",
+      "seconds": 22.9
+    },
+    "DAPT(bert_domain)": {
+      "ndcg@10": 0.8761,
+      "p@5": 0.7565,
+      "queries": 46,
+      "model_path": "models/bert_domain",
+      "seconds": 24.0
+    },
+    "bert_pair全量(转导对照)": {
+      "ndcg@10": 0.9998,
+      "p@5": 0.887,
+      "queries": 46,
+      "model_path": "models/bert_pair",
+      "seconds": 24.5
+    },
+    "bert_pair留出(真泛化)": {
+      "ndcg@10": 0.9929,
+      "p@5": 0.8826,
+      "queries": 46,
+      "model_path": "C:\\Users\\30832\\Desktop\\什么东东课程设计我也不知道啊\\resume-matcher\\backend\\models\\bert_pair_holdout",
+      "seconds": 28.8
+    }
+  },
+  "conclusion_note": "全量−留出 = 记忆成分；留出−DAPT = 对比微调的泛化增益"
+}
