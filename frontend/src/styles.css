@@ -54,54 +54,53 @@ body {
 ::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
 ::-webkit-scrollbar-track { background: transparent; }
 
-/* ---------- 3. 页头与导航 ---------- */
-.app-header {
-  background: linear-gradient(120deg, #1e3a8a 0%, #1d4ed8 55%, #2563eb 100%);
-  color: #fff;
-  padding: 22px 32px;
-  box-shadow: var(--shadow-md);
+/* ---------- 3. 侧边栏布局（T40v2：导航在左手边，配色转沉稳石墨蓝） ---------- */
+.shell { min-height: 100vh; }
+.sidebar {
+  position: fixed; inset: 0 auto 0 0; width: 228px; z-index: 40;
+  background: linear-gradient(180deg, #243044 0%, #1c2534 100%);
+  display: flex; flex-direction: column;
+  padding: 20px 14px 16px;
 }
-.app-header-inner {
-  max-width: 1100px; margin: 0 auto;
-  display: flex; align-items: center; gap: 14px;
-}
+.brand { display: flex; gap: 11px; align-items: center; padding: 2px 6px 18px; }
 .brand-mark {
   flex-shrink: 0;
-  width: 44px; height: 44px; border-radius: 12px;
-  background: rgba(255, 255, 255, 0.16);
-  border: 1px solid rgba(255, 255, 255, 0.28);
+  width: 40px; height: 40px; border-radius: 11px;
+  background: rgba(148, 163, 184, 0.16);
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  color: #cbd5e1;
   display: flex; align-items: center; justify-content: center;
-  font-size: 20px; font-weight: 700; letter-spacing: 0;
-  backdrop-filter: blur(4px);
+  font-size: 18px; font-weight: 700;
 }
-.app-header h1 { margin: 0; font-size: 20px; letter-spacing: 0.5px; }
-.app-header p { margin: 4px 0 0; opacity: 0.82; font-size: 13px; }
+.brand-text h1 {
+  margin: 0; font-size: 14.5px; line-height: 1.4; font-weight: 600;
+  color: #e2e8f0; letter-spacing: 0.3px;
+}
+.brand-text p { margin: 3px 0 0; font-size: 11px; color: #8fa0b5; }
 
-.tabs {
-  position: sticky; top: 0; z-index: 40;
-  background: rgba(255, 255, 255, 0.88);
-  backdrop-filter: blur(10px);
-  border-bottom: 1px solid var(--border);
-  padding: 10px 32px;
+.side-nav { display: flex; flex-direction: column; gap: 4px; }
+.side-item {
+  display: block; width: 100%; text-align: left;
+  border: none; background: transparent; cursor: pointer;
+  padding: 11px 14px; font-size: 14px; font-family: inherit;
+  color: #9daebf; border-radius: 10px;
+  transition: background 0.16s var(--ease), color 0.16s var(--ease);
+  position: relative;
 }
-.tabs-inner {
-  max-width: 1100px; margin: 0 auto;
-  display: flex; gap: 6px; flex-wrap: wrap;
+.side-item:hover { background: rgba(148, 163, 184, 0.1); color: #e2e8f0; }
+.side-item.active { background: rgba(96, 165, 250, 0.14); color: #f1f5f9; font-weight: 600; }
+.side-item.active::before {
+  content: ""; position: absolute; left: 0; top: 9px; bottom: 9px; width: 3px;
+  border-radius: 2px; background: #7fa8d9;
 }
-.tab {
-  border: 1px solid transparent; background: transparent;
-  padding: 9px 20px; font-size: 14px; border-radius: 999px;
-  cursor: pointer; color: var(--muted); font-family: inherit;
-  transition: all 0.18s var(--ease);
-}
-.tab:hover { color: var(--primary); background: var(--primary-softer); }
-.tab.active {
-  background: var(--primary); color: #fff; font-weight: 600;
-  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.35);
-}
-.tab:focus-visible { outline: none; box-shadow: var(--ring); }
+.side-item:focus-visible { outline: none; box-shadow: 0 0 0 2px rgba(147, 197, 253, 0.4); }
 
-.page { padding: 24px 32px 56px; max-width: 1100px; margin: 0 auto; }
+.sidebar-foot {
+  margin-top: auto; padding: 12px 8px 0;
+  font-size: 11px; color: #64748b; border-top: 1px solid rgba(148, 163, 184, 0.14);
+}
+
+.page { margin-left: 228px; padding: 26px 30px 56px; max-width: 1160px; }
 
 /* ---------- 4. 卡片与通用布局 ---------- */
 .card {
@@ -305,10 +304,16 @@ tr.clickable:hover { background: var(--primary-softer); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
-@media (max-width: 640px) {
-  .app-header { padding: 16px 18px; }
-  .tabs { padding: 8px 18px; }
-  .page { padding: 16px 18px 40px; }
+@media (max-width: 900px) {
+  .sidebar {
+    position: static; width: auto; flex-direction: row; align-items: center;
+    gap: 12px; padding: 12px 16px;
+  }
+  .brand { padding: 0; }
+  .side-nav { flex-direction: row; flex-wrap: wrap; }
+  .side-item.active::before { display: none; }
+  .sidebar-foot { display: none; }
+  .page { margin-left: 0; padding: 16px 18px 40px; }
   .card { padding: 16px; }
   .rank-card { flex-direction: column; }
   .score-wrap { width: 100%; }

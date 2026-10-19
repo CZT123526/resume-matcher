@@ -12,30 +12,30 @@ const TABS = [
   { key: 'model', label: '模型状态', comp: ModelInfo },
 ]
 
+// T40v2：左侧边栏布局（用户要求导航放左手边），标题配色转沉稳石墨蓝
 export default function App() {
   const [tab, setTab] = useState('resumes')
   const Active = TABS.find((t) => t.key === tab).comp
 
   return (
-    <div>
-      <header className="app-header">
-        <div className="app-header-inner">
+    <div className="shell">
+      <aside className="sidebar">
+        <div className="brand">
           <span className="brand-mark">简</span>
-          <div>
+          <div className="brand-text">
             <h1>简历智能解析与人才推荐系统</h1>
-            <p>BERT NER 抽取 · 语义匹配 · 证据链可解释 · 运行时全本地</p>
+            <p>BERT NER · 语义匹配 · 全本地运行</p>
           </div>
         </div>
-      </header>
-      <nav className="tabs">
-        <div className="tabs-inner">
+        <nav className="side-nav">
           {TABS.map((t) => (
-            <button key={t.key} className={`tab ${tab === t.key ? 'active' : ''}`} onClick={() => setTab(t.key)}>
+            <button key={t.key} className={`side-item ${tab === t.key ? 'active' : ''}`} onClick={() => setTab(t.key)}>
               {t.label}
             </button>
           ))}
-        </div>
-      </nav>
+        </nav>
+        <div className="sidebar-foot">运行时零外部 API · SQLite + NumPy</div>
+      </aside>
       <main className="page">
         <Active />
       </main>

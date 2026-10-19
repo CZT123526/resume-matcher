@@ -5,9 +5,9 @@
 - resume_ids.json  {"order": [resume_id...], "hashes": {id: md5(raw_text)}}
 - tfidf_state.npz  降级模式的词表+IDF（保证建库/查询同一特征空间）
 
-重建规则（算法设计 §3.3）：任一 done 简历的内容哈希与缓存不一致 → 全量重建；
-编码器身份变化（如 BERT_MODEL_PATH 指向领域微调版）同样触发重建——否则查询向量与
-库向量不同源，余弦分数会静默错乱（T25 教训）。
+重建规则（算法设计 §3.3 + T41 增量）：简历的编码输入哈希与缓存不一致 → 只重编
+该简历（BERT 增量，未变行复用旧向量）；TF-IDF / 编码器身份 / 表示版本变化 → 全量
+重建——否则查询向量与库向量不同源，余弦分数会静默错乱（T25 教训）。
 """
 import hashlib
 import json
@@ -113,6 +113,9 @@ def structured_text(resume: dict, max_len: int = 1000) -> str:
 def _load_meta() -> dict:
     meta = json.loads(IDS_FILE.read_text(encoding="utf-8")) if IDS_FILE.exists() else {"order": [], "hashes": {}}
     meta.setdefault("encoder", "")  # 旧缓存无此字段 → 指纹不匹配触发重建
+    # JSON 无 int 键：落盘 round-trip 后 hashes 键变 str，直接比较永远 False →
+    # 快路径失效、每次匹配全量重编（T41 修复，快路径首次真正生效）
+    meta["hashes"] = {int(k): v for k, v in meta["hashes"].items()}
     return meta
 
 
@@ -131,10 +134,16 @@ def ensure_cache(progress_cb=None) -> tuple[np.ndarray, list[int]]:
     """确保缓存最新，返回 (矩阵, 对应 resume_id 列表)。
 
     progress_cb(percent) 供匹配任务上报重建进度（重建是主要耗时）。
+
+    T41 增量重建：BERT 模式下哈希未变的行**直接复用旧向量**，只编码新增/变更的
+    简历——此前任一简历变化都触发全量重编（千级语料 CPU 上约 100 秒/次），是匹配
+    慢的主因。哈希对象改为 structured_text（编码输入本身）：实体重抽不改原文也能
+    正确失效。TF-IDF 模式必须全量重建——词表/IDF 依赖全语料，增量插入会改变特征
+    空间导致新旧向量不可比。
     """
     data = _current_resume_data()
     hashes = {
-        rid: hashlib.md5(item["raw_text"].encode("utf-8")).hexdigest()
+        rid: hashlib.md5(structured_text(item).encode("utf-8")).hexdigest()
         for rid, item in data.items()
     }
     meta = _load_meta()
@@ -149,23 +158,56 @@ def ensure_cache(progress_cb=None) -> tuple[np.ndarray, list[int]]:
         if meta["order"] and meta["hashes"] == hashes and meta["encoder"] == fp and VEC_FILE.exists():
             return np.load(VEC_FILE), meta["order"]
 
-        logger.info("向量缓存失效（简历 %d 份），开始全量重建", len(data))
         from app.svc.embedding import get_encoder, save_tfidf_state
 
         order = sorted(data)
-        corpus = [structured_text(data[rid]) for rid in order]
-
         encoder = get_encoder()
-        if encoder.kind == "tfidf":
-            encoder = encoder.fit(corpus)
-            save_tfidf_state(encoder, TFIDF_STATE_FILE)
-            if progress_cb:
-                progress_cb(50)
-            matrix = encoder.encode(corpus)
-        else:
+        can_reuse = (
+            encoder.kind != "tfidf"
+            and meta["encoder"] == fp
+            and meta["order"]
+            and VEC_FILE.exists()
+        )
+
+        if can_reuse:
+            # ---- 增量：复用未变行，只编新/变简历（T41）----
+            old_matrix = np.load(VEC_FILE)
+            old_row_of = {rid: i for i, rid in enumerate(meta["order"])}
+            stale = [
+                rid for rid in order
+                if rid not in old_row_of or rid not in meta["hashes"]
+                or meta["hashes"][rid] != hashes[rid]
+            ]
             if progress_cb:
                 progress_cb(30)
-            matrix = encoder.encode(corpus)
+            new_vecs = (
+                encoder.encode([structured_text(data[rid]) for rid in stale])
+                if stale else None
+            )
+            new_by_rid = dict(zip(stale, new_vecs)) if stale else {}
+            rows = [
+                new_by_rid[rid] if rid in new_by_rid else old_matrix[old_row_of[rid]]
+                for rid in order
+            ]
+            matrix = np.vstack(rows).astype(old_matrix.dtype, copy=False)
+            logger.info(
+                "向量缓存增量更新：%d 份复用 / %d 份新编码（全库 %d）",
+                len(order) - len(stale), len(stale), len(order),
+            )
+        else:
+            # ---- 全量：TF-IDF / 编码器或表示版本变更 / 首次建库 ----
+            logger.info("向量缓存失效（简历 %d 份），开始全量重建", len(data))
+            corpus = [structured_text(data[rid]) for rid in order]
+            if encoder.kind == "tfidf":
+                encoder = encoder.fit(corpus)
+                save_tfidf_state(encoder, TFIDF_STATE_FILE)
+                if progress_cb:
+                    progress_cb(50)
+                matrix = encoder.encode(corpus)
+            else:
+                if progress_cb:
+                    progress_cb(30)
+                matrix = encoder.encode(corpus)
 
         np.save(VEC_FILE, matrix)
         IDS_FILE.write_text(
@@ -174,7 +216,7 @@ def ensure_cache(progress_cb=None) -> tuple[np.ndarray, list[int]]:
         if progress_cb:
             progress_cb(60)
         logger.info(
-            "向量缓存重建完成：%d × %d 维（编码器=%s 指纹=%s）", matrix.shape[0], matrix.shape[1], encoder.kind, fp
+            "向量缓存就绪：%d × %d 维（编码器=%s 指纹=%s）", matrix.shape[0], matrix.shape[1], encoder.kind, fp
         )
         return matrix, order
 
