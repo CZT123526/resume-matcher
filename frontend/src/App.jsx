@@ -23,8 +23,7 @@ export default function App() {
         <div className="brand">
           <span className="brand-mark">简</span>
           <div className="brand-text">
-            <h1>简历智能解析与人才推荐系统</h1>
-            <p>BERT NER · 语义匹配 · 全本地运行</p>
+            <h1>简历解析与人才推荐</h1>
           </div>
         </div>
         <nav className="side-nav">
@@ -34,7 +33,6 @@ export default function App() {
             </button>
           ))}
         </nav>
-        <div className="sidebar-foot">运行时零外部 API · SQLite + NumPy</div>
       </aside>
       <main className="page">
         <Active />

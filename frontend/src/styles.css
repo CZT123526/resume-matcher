@@ -12,7 +12,7 @@
   --primary-weak: #dbeafe;
   --primary-softer: #eff6ff;
   /* 中性 */
-  --bg: #f4f6fb;
+  --bg: #ffffff;
   --card: #ffffff;
   --text: #111827;
   --text-2: #374151;
@@ -40,9 +40,7 @@
 /* ---------- 2. 基础 ---------- */
 body {
   margin: 0;
-  background:
-    radial-gradient(1200px 300px at 50% -80px, rgba(37, 99, 235, 0.06), transparent),
-    var(--bg);
+  background: var(--bg);
   color: var(--text);
   font-family: "PingFang SC", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -73,10 +71,10 @@ body {
   font-size: 18px; font-weight: 700;
 }
 .brand-text h1 {
-  margin: 0; font-size: 14.5px; line-height: 1.4; font-weight: 600;
-  color: #e2e8f0; letter-spacing: 0.3px;
+  margin: 0; font-size: 15px; line-height: 1.4; font-weight: 600;
+  color: #ffffff; letter-spacing: 0.3px;
+  white-space: nowrap;
 }
-.brand-text p { margin: 3px 0 0; font-size: 11px; color: #8fa0b5; }
 
 .side-nav { display: flex; flex-direction: column; gap: 4px; }
 .side-item {
@@ -94,11 +92,6 @@ body {
   border-radius: 2px; background: #7fa8d9;
 }
 .side-item:focus-visible { outline: none; box-shadow: 0 0 0 2px rgba(147, 197, 253, 0.4); }
-
-.sidebar-foot {
-  margin-top: auto; padding: 12px 8px 0;
-  font-size: 11px; color: #64748b; border-top: 1px solid rgba(148, 163, 184, 0.14);
-}
 
 .page { margin-left: 228px; padding: 26px 30px 56px; max-width: 1160px; }
 
@@ -312,7 +305,6 @@ tr.clickable:hover { background: var(--primary-softer); }
   .brand { padding: 0; }
   .side-nav { flex-direction: row; flex-wrap: wrap; }
   .side-item.active::before { display: none; }
-  .sidebar-foot { display: none; }
   .page { margin-left: 0; padding: 16px 18px 40px; }
   .card { padding: 16px; }
   .rank-card { flex-direction: column; }
