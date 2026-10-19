@@ -52,11 +52,12 @@ body {
 ::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
 ::-webkit-scrollbar-track { background: transparent; }
 
-/* ---------- 3. 侧边栏布局（T40v2：导航在左手边，配色转沉稳石墨蓝） ---------- */
+/* ---------- 3. 侧边栏布局（T40v3：白底浅黑字，导航在左手边） ---------- */
 .shell { min-height: 100vh; }
 .sidebar {
   position: fixed; inset: 0 auto 0 0; width: 228px; z-index: 40;
-  background: linear-gradient(180deg, #243044 0%, #1c2534 100%);
+  background: #ffffff;
+  border-right: 1px solid var(--border);
   display: flex; flex-direction: column;
   padding: 20px 14px 16px;
 }
@@ -64,15 +65,15 @@ body {
 .brand-mark {
   flex-shrink: 0;
   width: 40px; height: 40px; border-radius: 11px;
-  background: rgba(148, 163, 184, 0.16);
-  border: 1px solid rgba(148, 163, 184, 0.24);
-  color: #cbd5e1;
+  background: var(--gray-weak);
+  border: 1px solid var(--border);
+  color: var(--text-2);
   display: flex; align-items: center; justify-content: center;
   font-size: 18px; font-weight: 700;
 }
 .brand-text h1 {
   margin: 0; font-size: 15px; line-height: 1.4; font-weight: 600;
-  color: #ffffff; letter-spacing: 0.3px;
+  color: var(--text); letter-spacing: 0.3px;
   white-space: nowrap;
 }
 
@@ -81,17 +82,17 @@ body {
   display: block; width: 100%; text-align: left;
   border: none; background: transparent; cursor: pointer;
   padding: 11px 14px; font-size: 14px; font-family: inherit;
-  color: #9daebf; border-radius: 10px;
+  color: #4b5563; border-radius: 10px;
   transition: background 0.16s var(--ease), color 0.16s var(--ease);
   position: relative;
 }
-.side-item:hover { background: rgba(148, 163, 184, 0.1); color: #e2e8f0; }
-.side-item.active { background: rgba(96, 165, 250, 0.14); color: #f1f5f9; font-weight: 600; }
+.side-item:hover { background: var(--gray-weak); color: var(--text); }
+.side-item.active { background: var(--primary-softer); color: var(--primary-strong); font-weight: 600; }
 .side-item.active::before {
   content: ""; position: absolute; left: 0; top: 9px; bottom: 9px; width: 3px;
-  border-radius: 2px; background: #7fa8d9;
+  border-radius: 2px; background: var(--primary);
 }
-.side-item:focus-visible { outline: none; box-shadow: 0 0 0 2px rgba(147, 197, 253, 0.4); }
+.side-item:focus-visible { outline: none; box-shadow: var(--ring); }
 
 .page { margin-left: 228px; padding: 26px 30px 56px; max-width: 1160px; }
 
