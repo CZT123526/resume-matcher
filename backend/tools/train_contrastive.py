@@ -129,6 +129,60 @@ def dev_recall(model, tok, pairs: list[tuple[str, str]], device, max_len: int) -
     return float(hit)
 
 
+def train_contrastive(model, tok, train_pairs, *, epochs, batch, lr, temp, max_len, seed, device="cpu", eval_fn=None):
+    """批内角色互不重复的对比训练主循环（入口 main 与留出法补验脚本共用）。
+
+    每批从不同角色各抽 1 份简历（35 角色 > batch），批内其余样本即真负例；
+    某角色队列耗尽后回填重采样，等价多轮 epoch。eval_fn 提供时每个 epoch 末调用一次。
+    """
+    by_role: dict[str, list[tuple[str, str]]] = defaultdict(list)
+    for p in train_pairs:
+        by_role[p[1]].append(p)
+    rng = random.Random(seed)
+    opt = torch.optim.AdamW(model.parameters(), lr=lr)
+    model.train()
+
+    def make_batches() -> list[list[tuple[str, str]]]:
+        queues = {r: rng.sample(v, len(v)) for r, v in by_role.items()}
+        roles = list(by_role)
+        batches = []
+        n_batches = (len(train_pairs) + batch - 1) // batch
+        for _ in range(n_batches):
+            pick = rng.sample(roles, min(batch, len(roles)))
+            b = []
+            for r in pick:
+                q = queues[r]
+                if not q:
+                    queues[r] = rng.sample(by_role[r], len(by_role[r]))
+                    q = queues[r]
+                b.append(q.pop())
+            batches.append(b)
+        return batches
+
+    for epoch in range(1, epochs + 1):
+        batches = make_batches()
+        rng.shuffle(batches)
+        t0, total_loss = time.time(), 0.0
+        for bi, b in enumerate(batches, 1):
+            enc_r = tok([p[0] for p in b], padding=True, truncation=True, max_length=max_len, return_tensors="pt").to(device)
+            enc_j = tok([p[1] for p in b], padding=True, truncation=True, max_length=max_len, return_tensors="pt").to(device)
+            vr = F.normalize(mean_pool(model(**enc_r).last_hidden_state, enc_r["attention_mask"]), dim=-1)
+            vj = F.normalize(mean_pool(model(**enc_j).last_hidden_state, enc_j["attention_mask"]), dim=-1)
+            labels = torch.arange(len(b))
+            loss = 0.5 * (
+                F.cross_entropy(vr @ vj.T / temp, labels) + F.cross_entropy(vj @ vr.T / temp, labels)
+            )
+            opt.zero_grad()
+            loss.backward()
+            opt.step()
+            total_loss += float(loss)
+            if bi % 5 == 0 or bi == len(batches):
+                log(f"epoch {epoch} batch {bi}/{len(batches)} loss={total_loss / bi:.4f} ({time.time() - t0:.0f}s)")
+        if eval_fn is not None:
+            log(f"epoch {epoch} dev指标 = {eval_fn():.4f}")
+    return model
+
+
 def main() -> int:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -158,60 +212,18 @@ def main() -> int:
     dev = [pairs[i] for i in sorted(dev_idx)]
     log(f"训练 {len(train)} / 开发 {len(dev)}（dev 仅评测，不参与训练）")
 
-    by_role: dict[str, list[tuple[str, str]]] = defaultdict(list)
-    for p in train:
-        by_role[p[1]].append(p)
-
     tok = AutoTokenizer.from_pretrained(args.base)
     model = AutoModel.from_pretrained(args.base)
-    opt = torch.optim.AdamW(model.parameters(), lr=args.lr)
-    model.train()
-
-    def make_batches() -> list[list[tuple[str, str]]]:
-        """批内角色互不重复：每批从 ≤batch 个不同角色各抽 1 份简历"""
-        queues = {r: rng.sample(v, len(v)) for r, v in by_role.items()}
-        roles = list(by_role)
-        batches = []
-        n_batches = (len(train) + args.batch - 1) // args.batch
-        for _ in range(n_batches):
-            pick_roles = rng.sample(roles, min(args.batch, len(roles)))
-            batch = []
-            for r in pick_roles:
-                q = queues[r]
-                if not q:  # 该角色耗尽则回填（跨轮重复采样，等价多轮 epoch）
-                    queues[r] = rng.sample(by_role[r], len(by_role[r]))
-                    q = queues[r]
-                batch.append(q.pop())
-            batches.append(batch)
-        return batches
 
     base_recall = dev_recall(model, tok, dev, device, args.max_len)
     log(f"微调前 dev Recall@1（35 角色检索）= {base_recall:.4f}")
 
-    for epoch in range(1, args.epochs + 1):
-        batches = make_batches()
-        rng.shuffle(batches)
-        t0, total_loss = time.time(), 0.0
-        for bi, batch in enumerate(batches, 1):
-            resumes = [p[0] for p in batch]
-            jds = [p[1] for p in batch]
-            enc_r = tok(resumes, padding=True, truncation=True, max_length=args.max_len, return_tensors="pt").to(device)
-            enc_j = tok(jds, padding=True, truncation=True, max_length=args.max_len, return_tensors="pt").to(device)
-            vr = F.normalize(mean_pool(model(**enc_r).last_hidden_state, enc_r["attention_mask"]), dim=-1)
-            vj = F.normalize(mean_pool(model(**enc_j).last_hidden_state, enc_j["attention_mask"]), dim=-1)
-            labels = torch.arange(len(batch))
-            loss = 0.5 * (
-                F.cross_entropy(vr @ vj.T / args.temp, labels)
-                + F.cross_entropy(vj @ vr.T / args.temp, labels)
-            )
-            opt.zero_grad()
-            loss.backward()
-            opt.step()
-            total_loss += float(loss)
-            if bi % 5 == 0 or bi == len(batches):
-                log(f"epoch {epoch} batch {bi}/{len(batches)} loss={total_loss / bi:.4f} ({time.time() - t0:.0f}s)")
-        rec = dev_recall(model, tok, dev, device, args.max_len)
-        log(f"epoch {epoch} 完成：dev Recall@1 = {rec:.4f}")
+    model = train_contrastive(
+        model, tok, train,
+        epochs=args.epochs, batch=args.batch, lr=args.lr, temp=args.temp,
+        max_len=args.max_len, seed=args.seed, device=device,
+        eval_fn=lambda: dev_recall(model, tok, dev, device, args.max_len),
+    )
 
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
