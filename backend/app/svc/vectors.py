@@ -13,6 +13,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import threading
 from pathlib import Path
 
@@ -21,6 +22,17 @@ import numpy as np
 from app.db import db_file, get_db
 
 logger = logging.getLogger(__name__)
+
+# 编码对象表示版本：结构化文本格式变化必须换版本——缓存指纹含此版本（T36 B3），
+# 旧缓存自动失效重建（raw_text 哈希不变，不换版本会静默沿用旧表示的向量）
+REPR_VERSION = "v2"
+
+# 经历要点行：编号要点（1、xxx）或工作动词开头的陈述行；字段行（前6字符内带冒号）跳过
+_BULLET_RE = re.compile(r"^\d{1,2}[、.．]")
+_WORK_LEAD_RE = re.compile(
+    r"^(?:负责|主导|参与|协助|独立|配合|使用|基于|通过|搭建|优化|维护|熟悉|精通|跟进|沉淀)"
+)
+_WORK_BUDGET = 400  # 经历要点追加预算（字符），实体清单+要点控制在 BERT 512 token 输入内
 
 DB_DIR = db_file().parent
 VEC_FILE = DB_DIR / "vectors.npy"
@@ -52,8 +64,32 @@ def _current_resume_data() -> dict[int, dict]:
     return data
 
 
+def _work_lines(raw_text: str) -> list[str]:
+    """工作经历要点行（T36 B3 结构化文本增强）：实体清单丢失的语境信号从原文补回。
+
+    口语化简历的辨析信息藏在经历句里（"负责直播带货全流程"vs"负责剪辑成片"），
+    只编实体清单会让不同工种的向量挤在一起（T32 实测分数聚集 0.95~0.97）。
+    """
+    picked: list[str] = []
+    total = 0
+    for line in raw_text.splitlines():
+        s = line.strip()
+        if len(s) < 8 or "：" in s[:6] or ":" in s[:6]:
+            continue  # 字段行（姓名：/电话：等）不是经历
+        if _BULLET_RE.match(s) or _WORK_LEAD_RE.match(s):
+            picked.append(s)
+            total += len(s)
+            if total >= _WORK_BUDGET:
+                break
+    return picked
+
+
 def structured_text(resume: dict, max_len: int = 1000) -> str:
-    """编码对象（算法设计 §3.1）：结构化拼接，不用全文；实体缺失退回原文前缀。"""
+    """编码对象（算法设计 §3.1）：结构化拼接，不用全文；实体缺失退回原文前缀。
+
+    v2（T36 B3）：实体清单之后追加工作经历要点行（编号要点/工作动词句，截断至预算），
+    与查询侧同源增强语义与词面信号；格式变更已计入缓存指纹（REPR_VERSION）。
+    """
     grouped: dict[str, list[str]] = {}
     for key, value in resume["entities"]:
         if value:
@@ -66,7 +102,12 @@ def structured_text(resume: dict, max_len: int = 1000) -> str:
         f"经验：{grouped['years'][0]}年" if grouped.get("years") else "",
     ]
     text = " ".join(p for p in parts if p)
-    return text if text.strip() else resume["raw_text"][:max_len]
+    if not text.strip():
+        return resume["raw_text"][:max_len]
+    lines = _work_lines(resume.get("raw_text", ""))
+    if lines:
+        text = f"{text} 经历：{'；'.join(lines)}"[:max_len]
+    return text
 
 
 def _load_meta() -> dict:
@@ -76,11 +117,14 @@ def _load_meta() -> dict:
 
 
 def _encoder_fingerprint() -> str:
-    """编码器身份指纹：缓存跨编码器不可复用（换模型必须重建，保证查询/文档同源）"""
+    """编码器身份指纹：缓存跨编码器不可复用（换模型必须重建，保证查询/文档同源）。
+
+    含表示版本 REPR_VERSION：结构化文本格式变化同样触发全量重建（T36 B3）。
+    """
     from app.svc.embedding import _BERT_MODEL
 
     kind = "tfidf" if os.getenv("FORCE_TFIDF") == "1" else "bert"
-    return f"{kind}:{_BERT_MODEL}"
+    return f"{kind}:{_BERT_MODEL}:{REPR_VERSION}"
 
 
 def ensure_cache(progress_cb=None) -> tuple[np.ndarray, list[int]]:
