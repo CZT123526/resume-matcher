@@ -2,12 +2,14 @@
 import json
 import logging
 
+import numpy as np
+
 from app.config import settings
 from app.db import get_db
 from app.svc.evidence import compute_evidence
 from app.svc.jd_parsing import build_jd_requirements
 from app.svc.lexical import adaptive_alpha, coverage_from_scores, extract_jd_keywords, keyword_hit_score
-from app.svc.ranking import hybrid_rank
+from app.svc.ranking import hybrid_scores
 from app.svc.vectors import _current_resume_data, ensure_cache, load_query_encoder, structured_text
 
 logger = logging.getLogger(__name__)
@@ -84,7 +86,21 @@ def run_match_pipeline(task_id: int, jd_id: int, top_k: int) -> None:
             alpha = adaptive_alpha(alpha, coverage_from_scores(lex_scores.values()))
             logger.info("自适应 α：coverage=%.3f → α_eff=%.3f（base=%.2f）",
                         coverage_from_scores(lex_scores.values()), alpha, settings.MATCH_ALPHA)
-        ranked = hybrid_rank(jd_vec, lex_scores, top_k, alpha=alpha)
+        # T40：Top-K 与全量分布同源——hybrid_scores 一次融合，排名就地截断，
+        # 全量分数降序存档 match_score_dist（分布图接口读它，不二次计算）
+        final, order = hybrid_scores(jd_vec, lex_scores, alpha=alpha)
+        top = np.argsort(-final)[: max(int(top_k), 0)]
+        ranked = [
+            {"resume_id": int(order[i]), "score": round(float(final[i]), 4)}
+            for i in top
+        ]
+        dist_scores = sorted((round(float(s), 4) for s in final), reverse=True)
+        conn.execute(
+            "INSERT INTO match_score_dist(task_id, n_candidates, scores_json) VALUES(?,?,?) "
+            "ON CONFLICT(task_id) DO UPDATE SET n_candidates=excluded.n_candidates, "
+            "scores_json=excluded.scores_json",
+            (task_id, len(dist_scores), json.dumps(dist_scores)),
+        )
         _set(conn, "running", 85)
 
         rows = []

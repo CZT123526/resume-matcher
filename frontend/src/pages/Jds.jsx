@@ -8,6 +8,7 @@ export default function Jds() {
   const [detail, setDetail] = useState(null)
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
+  const [loaded, setLoaded] = useState(false)   // 首载骨架屏开关（T40）
 
   const refresh = useCallback(async () => {
     try {
@@ -15,6 +16,8 @@ export default function Jds() {
       setItems(data.items || [])
     } catch (e) {
       setMsg(`加载失败：${e.message}`)
+    } finally {
+      setLoaded(true)
     }
   }, [])
 
@@ -109,7 +112,13 @@ export default function Jds() {
 
       <div className="card">
         <h3>岗位列表（{items.length} 个）</h3>
-        {items.length === 0 ? (
+        {!loaded ? (
+          <div>
+            {[88, 76, 64, 55].map((w, i) => (
+              <div key={i} className="skeleton" style={{ height: 18, width: `${w}%`, marginBottom: 14 }} />
+            ))}
+          </div>
+        ) : items.length === 0 ? (
           <div className="empty">还没有 JD，先创建一条</div>
         ) : (
           renderTable(items)

@@ -19,6 +19,7 @@ export default function Resumes() {
   const [busy, setBusy] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [refreshedAt, setRefreshedAt] = useState('')
+  const [loaded, setLoaded] = useState(false)   // 首载骨架屏开关（T40）
   const [msg, setMsg] = useState('')
   const [searchQ, setSearchQ] = useState('')
   const [searchInfo, setSearchInfo] = useState(null) // {q, total}
@@ -37,6 +38,7 @@ export default function Resumes() {
       setMsg(`加载失败：${e.message}`)
     } finally {
       setRefreshing(false)
+      setLoaded(true)
     }
   }, [])
 
@@ -215,7 +217,13 @@ export default function Resumes() {
           )}
         </div>
         {!searchInfo && <div className="muted" style={{ marginBottom: 8 }}>点击文件名打开原件 · 点击行查看解析详情</div>}
-        {items.length === 0 ? (
+        {!loaded ? (
+          <div>
+            {[92, 84, 76, 68, 60].map((w, i) => (
+              <div key={i} className="skeleton" style={{ height: 18, width: `${w}%`, marginBottom: 14 }} />
+            ))}
+          </div>
+        ) : items.length === 0 ? (
           <div className="empty">{searchInfo ? '没有命中的简历，换个关键词试试' : '还没有简历，先上传一份试试'}</div>
         ) : (
           renderTable(items, !!searchInfo)
@@ -247,11 +255,15 @@ export default function Resumes() {
                 {recs.loading && <span className="muted">计算中…（首次需构建岗位向量）</span>}
                 {recs.error && <span className="error-text">推荐失败：{recs.error}</span>}
                 {recs.items?.map((it, i) => (
-                  <div key={it.jd_id} style={{ marginBottom: 6 }}>
-                    <span className="chip ok">#{i + 1} {it.title}</span>
-                    <span className="chip">分 {it.score}</span>
-                    <span className="chip">语义百分位 {it.semantic_percentile}</span>
-                    <span className="chip">词面 {it.keyword_hit}/{it.n_keywords}词</span>
+                  <div key={it.jd_id} className="rec-item">
+                    <div className="rec-head">
+                      <span className="rec-title">#{i + 1} {it.title}</span>
+                      <span className="rec-score">{it.score}</span>
+                    </div>
+                    <div className="bar"><div style={{ width: `${Math.round(it.score * 100)}%` }} /></div>
+                    <div className="rec-meta">
+                      语义百分位 {it.semantic_percentile} · 词面命中 {it.keyword_hit}/{it.n_keywords} 词
+                    </div>
                     <div className="muted" style={{ fontSize: 12 }}>{it.evidence.join('；') || '（无证据项）'}</div>
                   </div>
                 ))}

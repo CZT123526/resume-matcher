@@ -63,6 +63,15 @@ CREATE TABLE IF NOT EXISTS match_results (
 );
 CREATE INDEX IF NOT EXISTS idx_results_task ON match_results(task_id, rank); -- 按任务取排名结果
 
+-- 匹配全量分数分布表（T40）：任务完成时把**全部**候选简历的融合分存档一份
+-- （match_results 只存 Top-K 截断后的行，分布图需要全量）。降序 4 位小数。
+CREATE TABLE IF NOT EXISTS match_score_dist (
+    task_id       INTEGER PRIMARY KEY REFERENCES match_tasks(id) ON DELETE CASCADE, -- 所属任务
+    n_candidates  INTEGER NOT NULL,                  -- 参与排名的简历总数（=融合分个数）
+    scores_json   TEXT    NOT NULL,                  -- 全量融合分JSON数组（降序，4位小数）
+    created_at    TEXT    NOT NULL DEFAULT (datetime('now','localtime')) -- 生成时间
+);
+
 -- 用户表（权限模块预留，当前版本不启用）
 CREATE TABLE IF NOT EXISTS users (
     id            INTEGER PRIMARY KEY AUTOINCREMENT, -- 用户ID

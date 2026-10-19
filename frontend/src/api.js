@@ -56,6 +56,9 @@ export const createMatchTask = (jdId, topK = 10) =>
   request('/match-tasks', jsonInit('POST', { jd_id: jdId, top_k: topK }))
 export const getMatchTask = (id) => request(`/match-tasks/${id}`)
 export const getMatchResults = (id) => request(`/match-tasks/${id}/results`)
+// 全量融合分分布（API-18，T40）：分布图数据源，历史任务返回空列表
+export const getMatchScoreDistribution = (id) =>
+  request(`/match-tasks/${id}/score_distribution`)
 
 // ---------- 模型 ----------
 export const getModelInfo = () => request('/model/info')

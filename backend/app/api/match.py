@@ -97,6 +97,38 @@ def match_task_results(task_id: int):
     return ok({"task_id": task_id, "jd_title": jd["title"] if jd else "", "items": items})
 
 
+@router.get("/api/match-tasks/{task_id}/score_distribution")
+def match_task_score_distribution(task_id: int):
+    """全量分数分布（T40，API-18）：全部候选简历的融合分（降序），分布图用。
+
+    历史任务（分布存档表无行）返回空列表，前端据此隐藏分布图，不算错误。
+    """
+    conn = get_db()
+    try:
+        task = conn.execute(
+            "SELECT id, status, jd_id FROM match_tasks WHERE id=?", (task_id,)
+        ).fetchone()
+        if task is None:
+            raise AppError(ErrorCode.NOT_FOUND, f"任务 {task_id} 不存在")
+        if task["status"] != "done":
+            raise AppError(ErrorCode.CONFLICT, f"任务尚未完成（当前 {task['status']}），完成后再取结果")
+        dist = conn.execute(
+            "SELECT n_candidates, scores_json FROM match_score_dist WHERE task_id=?",
+            (task_id,),
+        ).fetchone()
+        jd = conn.execute("SELECT title FROM jds WHERE id=?", (task["jd_id"],)).fetchone()
+    finally:
+        conn.close()
+
+    scores = json.loads(dist["scores_json"]) if dist else []
+    return ok({
+        "task_id": task_id,
+        "jd_title": jd["title"] if jd else "",
+        "n_candidates": dist["n_candidates"] if dist else 0,
+        "scores": scores,
+    })
+
+
 @router.get("/api/model/info")
 def model_info():
     """模型信息：训练产物 metrics.json 存在则真实指标，否则如实返回未训练状态"""

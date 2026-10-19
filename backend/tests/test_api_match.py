@@ -84,6 +84,16 @@ def test_match_full_flow():
     scores = [i["score"] for i in items]
     assert scores == sorted(scores, reverse=True)
 
+    # T40 分布契约：全量分数降序，与 Top-K 第一名同源同值
+    dist = client.get(f"/api/match-tasks/{task_id}/score_distribution")
+    assert dist.status_code == 200
+    d = dist.json()["data"]
+    assert d["jd_title"] == "Python后端工程师"
+    assert d["n_candidates"] == len(d["scores"]) >= 3
+    assert d["scores"] == sorted(d["scores"], reverse=True)
+    assert all(0.0 <= s <= 1.0 for s in d["scores"])
+    assert d["scores"][0] == items[0]["score"]
+
 
 def test_jd_delete_cascades_tasks():
     """T32：删 JD 连带删名下匹配任务（结果随 FK 级联），重复删 404"""
@@ -99,6 +109,7 @@ def test_jd_delete_cascades_tasks():
     assert client.get(f"/api/jds/{jd_id}").status_code == 404
     assert client.get(f"/api/match-tasks/{task_id}").status_code == 404
     assert client.get(f"/api/match-tasks/{task_id}/results").status_code == 404
+    assert client.get(f"/api/match-tasks/{task_id}/score_distribution").status_code == 404
     assert client.delete(f"/api/jds/{jd_id}").status_code == 404
 
 
@@ -121,6 +132,28 @@ def test_match_task_validation_and_409():
 def test_match_task_404():
     assert client.get("/api/match-tasks/999999").status_code == 404
     assert client.get("/api/match-tasks/999999/results").status_code == 404
+    assert client.get("/api/match-tasks/999999/score_distribution").status_code == 404
+
+
+def test_score_distribution_legacy_task_empty():
+    """T40：分布存档表无行的历史 done 任务 → 200 空列表（前端隐藏分布图，不算错误）"""
+    from app.db import get_db
+
+    jd_id = test_jd_crud()
+    conn = get_db()
+    try:
+        cur = conn.execute(
+            "INSERT INTO match_tasks(jd_id, top_k, status, progress) VALUES(?,?,'done',100)",
+            (jd_id, 5),
+        )
+        legacy_id = cur.lastrowid
+        conn.commit()
+    finally:
+        conn.close()
+
+    d = client.get(f"/api/match-tasks/{legacy_id}/score_distribution").json()["data"]
+    assert d == {"task_id": legacy_id, "jd_title": "Python后端工程师",
+                 "n_candidates": 0, "scores": []}
 
 
 def test_model_info():

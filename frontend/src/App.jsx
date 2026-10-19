@@ -19,15 +19,22 @@ export default function App() {
   return (
     <div>
       <header className="app-header">
-        <h1>简历智能解析与人才推荐系统</h1>
-        <p>BERT NER 抽取 · 语义匹配 · 证据链可解释 · 运行时全本地</p>
+        <div className="app-header-inner">
+          <span className="brand-mark">简</span>
+          <div>
+            <h1>简历智能解析与人才推荐系统</h1>
+            <p>BERT NER 抽取 · 语义匹配 · 证据链可解释 · 运行时全本地</p>
+          </div>
+        </div>
       </header>
       <nav className="tabs">
-        {TABS.map((t) => (
-          <button key={t.key} className={`tab ${tab === t.key ? 'active' : ''}`} onClick={() => setTab(t.key)}>
-            {t.label}
-          </button>
-        ))}
+        <div className="tabs-inner">
+          {TABS.map((t) => (
+            <button key={t.key} className={`tab ${tab === t.key ? 'active' : ''}`} onClick={() => setTab(t.key)}>
+              {t.label}
+            </button>
+          ))}
+        </div>
       </nav>
       <main className="page">
         <Active />

@@ -1,124 +1,315 @@
+/* ============================================================
+   设计系统（T40 精修）：令牌 → 布局 → 组件 → 动效
+   纪律：不引组件库，全部原生 CSS；所有历史 class 名保持兼容，
+   页面只增不删，样式改动可整文件评审。
+   ============================================================ */
+
+/* ---------- 1. 设计令牌 ---------- */
 :root {
+  /* 主色：科技蓝（品牌渐变自 #1e40af 起） */
   --primary: #2563eb;
+  --primary-strong: #1d4ed8;
   --primary-weak: #dbeafe;
-  --bg: #f5f7fb;
+  --primary-softer: #eff6ff;
+  /* 中性 */
+  --bg: #f4f6fb;
   --card: #ffffff;
-  --text: #1f2937;
+  --text: #111827;
+  --text-2: #374151;
   --muted: #6b7280;
   --border: #e5e7eb;
+  --gray-weak: #f3f4f6;
+  /* 语义色 */
   --green: #16a34a;
   --green-weak: #dcfce7;
   --red: #dc2626;
   --red-weak: #fee2e2;
-  --gray-weak: #f3f4f6;
+  --amber: #a16207;
+  --amber-weak: #fef9c3;
+  /* 形状与投影 */
+  --radius: 10px;
+  --radius-lg: 14px;
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.05);
+  --shadow-md: 0 4px 14px rgba(15, 23, 42, 0.07);
+  --shadow-lg: 0 20px 60px rgba(15, 23, 42, 0.22);
+  --ring: 0 0 0 3px rgba(37, 99, 235, 0.18);
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 * { box-sizing: border-box; }
+
+/* ---------- 2. 基础 ---------- */
 body {
   margin: 0;
-  background: var(--bg);
+  background:
+    radial-gradient(1200px 300px at 50% -80px, rgba(37, 99, 235, 0.06), transparent),
+    var(--bg);
   color: var(--text);
-  font-family: "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+  font-family: "PingFang SC", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
+::selection { background: var(--primary-weak); }
+/* 细滚动条（WebKit） */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* ---------- 3. 页头与导航 ---------- */
 .app-header {
-  background: linear-gradient(135deg, #1e3a8a, #2563eb);
+  background: linear-gradient(120deg, #1e3a8a 0%, #1d4ed8 55%, #2563eb 100%);
   color: #fff;
-  padding: 18px 32px;
+  padding: 22px 32px;
+  box-shadow: var(--shadow-md);
 }
-.app-header h1 { margin: 0; font-size: 20px; }
-.app-header p { margin: 4px 0 0; opacity: 0.85; font-size: 13px; }
-.tabs { display: flex; gap: 8px; padding: 12px 32px 0; }
+.app-header-inner {
+  max-width: 1100px; margin: 0 auto;
+  display: flex; align-items: center; gap: 14px;
+}
+.brand-mark {
+  flex-shrink: 0;
+  width: 44px; height: 44px; border-radius: 12px;
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px; font-weight: 700; letter-spacing: 0;
+  backdrop-filter: blur(4px);
+}
+.app-header h1 { margin: 0; font-size: 20px; letter-spacing: 0.5px; }
+.app-header p { margin: 4px 0 0; opacity: 0.82; font-size: 13px; }
+
+.tabs {
+  position: sticky; top: 0; z-index: 40;
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 32px;
+}
+.tabs-inner {
+  max-width: 1100px; margin: 0 auto;
+  display: flex; gap: 6px; flex-wrap: wrap;
+}
 .tab {
-  border: none; background: transparent; padding: 10px 18px; font-size: 14px;
-  cursor: pointer; border-radius: 8px 8px 0 0; color: var(--muted);
+  border: 1px solid transparent; background: transparent;
+  padding: 9px 20px; font-size: 14px; border-radius: 999px;
+  cursor: pointer; color: var(--muted); font-family: inherit;
+  transition: all 0.18s var(--ease);
 }
-.tab.active { background: var(--card); color: var(--primary); font-weight: 600; }
-.page { padding: 20px 32px 48px; max-width: 1100px; margin: 0 auto; }
+.tab:hover { color: var(--primary); background: var(--primary-softer); }
+.tab.active {
+  background: var(--primary); color: #fff; font-weight: 600;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.35);
+}
+.tab:focus-visible { outline: none; box-shadow: var(--ring); }
+
+.page { padding: 24px 32px 56px; max-width: 1100px; margin: 0 auto; }
+
+/* ---------- 4. 卡片与通用布局 ---------- */
 .card {
-  background: var(--card); border: 1px solid var(--border); border-radius: 12px;
-  padding: 18px 20px; margin-bottom: 16px;
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-lg);
+  padding: 20px 22px; margin-bottom: 18px;
+  box-shadow: var(--shadow-sm);
 }
-.card h3 { margin: 0 0 12px; font-size: 15px; }
+.card h3 {
+  margin: 0 0 14px; font-size: 15px; font-weight: 600; color: var(--text);
+  display: flex; align-items: center; gap: 8px;
+}
+/* 标题左侧强调条 */
+.card h3::before {
+  content: ""; width: 4px; height: 15px; border-radius: 2px;
+  background: linear-gradient(180deg, #3b82f6, #1d4ed8); flex-shrink: 0;
+}
 .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+
+/* ---------- 5. 按钮 ---------- */
 .btn {
-  background: var(--primary); color: #fff; border: none; border-radius: 8px;
-  padding: 8px 16px; font-size: 14px; cursor: pointer;
+  background: var(--primary); color: #fff; border: none; border-radius: var(--radius);
+  padding: 9px 18px; font-size: 14px; cursor: pointer; font-family: inherit;
+  box-shadow: var(--shadow-sm);
+  transition: background 0.16s var(--ease), transform 0.16s var(--ease), box-shadow 0.16s var(--ease);
 }
+.btn:hover:not(:disabled) { background: var(--primary-strong); transform: translateY(-1px); box-shadow: var(--shadow-md); }
+.btn:active:not(:disabled) { transform: translateY(0); box-shadow: var(--shadow-sm); }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.btn.ghost { background: var(--gray-weak); color: var(--text); }
-.btn.danger { background: var(--red-weak); color: var(--red); }
+.btn:focus-visible { outline: none; box-shadow: var(--ring); }
+.btn.ghost {
+  background: #fff; color: var(--text-2); border: 1px solid var(--border); box-shadow: none;
+}
+.btn.ghost:hover:not(:disabled) { background: var(--gray-weak); border-color: #d1d5db; }
+.btn.danger { background: var(--red-weak); color: var(--red); box-shadow: none; }
+.btn.danger:hover:not(:disabled) { background: #fecaca; }
+
+/* ---------- 6. 表单控件 ---------- */
 input, textarea, select {
-  border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px;
-  font-size: 14px; font-family: inherit; background: #fff;
+  border: 1px solid var(--border); border-radius: var(--radius); padding: 9px 12px;
+  font-size: 14px; font-family: inherit; background: #fff; color: var(--text);
+  transition: border-color 0.16s var(--ease), box-shadow 0.16s var(--ease);
 }
-textarea { width: 100%; min-height: 90px; resize: vertical; }
+input:focus, textarea:focus, select:focus {
+  outline: none; border-color: var(--primary); box-shadow: var(--ring);
+}
+input::placeholder, textarea::placeholder { color: #9ca3af; }
+textarea { width: 100%; min-height: 90px; resize: vertical; line-height: 1.6; }
+
+/* ---------- 7. 表格 ---------- */
 table { width: 100%; border-collapse: collapse; font-size: 14px; }
-th { text-align: left; color: var(--muted); font-weight: 500; padding: 8px 10px; border-bottom: 1px solid var(--border); }
-td { padding: 10px; border-bottom: 1px solid var(--gray-weak); }
-tr.clickable { cursor: pointer; }
-tr.clickable:hover { background: var(--gray-weak); }
-.badge {
-  display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px;
+th {
+  text-align: left; color: var(--muted); font-weight: 500; font-size: 12.5px;
+  padding: 8px 10px; border-bottom: 1px solid var(--border);
+  letter-spacing: 0.3px;
 }
+td { padding: 11px 10px; border-bottom: 1px solid var(--gray-weak); color: var(--text-2); }
+tr:last-child td { border-bottom: none; }
+tr.clickable { cursor: pointer; transition: background 0.14s var(--ease); }
+tr.clickable:hover { background: var(--primary-softer); }
+
+/* ---------- 8. 徽章与标签 ---------- */
+.badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 2.5px 10px; border-radius: 999px; font-size: 12px; font-weight: 500;
+}
+.badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: 0.85; }
 .badge.done { background: var(--green-weak); color: var(--green); }
 .badge.failed { background: var(--red-weak); color: var(--red); }
-.badge.processing, .badge.pending, .badge.running { background: #fef9c3; color: #a16207; }
+.badge.processing, .badge.pending, .badge.running { background: var(--amber-weak); color: var(--amber); }
+
 .chip {
-  display: inline-block; background: var(--primary-weak); color: var(--primary);
-  border-radius: 6px; padding: 3px 10px; font-size: 13px; margin: 2px 4px 2px 0;
+  display: inline-block; background: var(--primary-softer); color: var(--primary-strong);
+  border: 1px solid var(--primary-weak);
+  border-radius: 8px; padding: 3px 10px; font-size: 12.5px; margin: 2px 6px 2px 0;
 }
-.chip.ok { background: var(--green-weak); color: var(--green); }
-.chip.bad { background: var(--red-weak); color: var(--red); }
-.chip.unknown { background: var(--gray-weak); color: var(--muted); }
+.chip.ok { background: var(--green-weak); color: var(--green); border-color: #bbf7d0; }
+.chip.bad { background: var(--red-weak); color: var(--red); border-color: #fecaca; }
+.chip.unknown { background: var(--gray-weak); color: var(--muted); border-color: var(--border); }
+
+/* ---------- 9. 排名卡片（匹配结果） ---------- */
 .rank-card {
   display: flex; gap: 16px; align-items: flex-start;
-  border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 12px;
-  background: var(--card);
+  border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 16px 18px;
+  margin-bottom: 12px; background: var(--card); box-shadow: var(--shadow-sm);
+  transition: transform 0.18s var(--ease), box-shadow 0.18s var(--ease), border-color 0.18s var(--ease);
+}
+.rank-card:hover {
+  transform: translateY(-2px); border-color: var(--primary-weak); box-shadow: var(--shadow-md);
 }
 .rank-num {
-  font-size: 22px; font-weight: 700; color: var(--primary); min-width: 44px; text-align: center;
+  font-size: 20px; font-weight: 700; min-width: 42px; height: 42px; text-align: center;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--muted); background: var(--gray-weak); border-radius: 12px;
 }
-.rank-num.top { color: #d97706; }
+.rank-num.top1 { color: #92400e; background: linear-gradient(135deg, #fef3c7, #fde68a); }
+.rank-num.top2 { color: #374151; background: linear-gradient(135deg, #f3f4f6, #e5e7eb); }
+.rank-num.top3 { color: #7c2d12; background: linear-gradient(135deg, #ffedd5, #fed7aa); }
 .candidate { flex: 1; }
-.candidate .name { font-weight: 600; font-size: 15px; }
+.candidate .name { font-weight: 600; font-size: 15px; color: var(--text); }
 .candidate .meta { color: var(--muted); font-size: 13px; margin-top: 2px; }
 .score-wrap { min-width: 180px; }
 .score-num { font-size: 20px; font-weight: 700; color: var(--primary); }
-.bar { background: var(--gray-weak); border-radius: 999px; height: 8px; overflow: hidden; margin-top: 6px; }
-.bar > div { background: linear-gradient(90deg, #60a5fa, #2563eb); height: 100%; }
+.bar {
+  background: var(--gray-weak); border-radius: 999px; height: 8px; overflow: hidden; margin-top: 6px;
+}
+.bar > div {
+  background: linear-gradient(90deg, #60a5fa, #2563eb); height: 100%; border-radius: 999px;
+  transition: width 0.6s var(--ease);
+}
+
+/* ---------- 10. 反向推荐迷你卡（T40 Resumes 弹窗） ---------- */
+.rec-item {
+  border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 12px;
+  margin-bottom: 8px; background: var(--primary-softer); border-color: var(--primary-weak);
+}
+.rec-head { display: flex; align-items: baseline; gap: 10px; }
+.rec-title { font-weight: 600; font-size: 13.5px; color: var(--text); flex: 1; }
+.rec-score { font-weight: 700; font-size: 15px; color: var(--primary); }
+.rec-meta { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.rec-item .bar { height: 6px; }
+
+/* ---------- 11. 文本辅助 ---------- */
 .muted { color: var(--muted); font-size: 13px; }
-.file-link { color: var(--primary); cursor: pointer; }
+.file-link { color: var(--primary); cursor: pointer; font-weight: 500; }
 .file-link:hover { text-decoration: underline; }
 .warn-text {
-  color: #a16207; background: #fef9c3; border-radius: 8px;
-  padding: 8px 12px; font-size: 13px; margin-bottom: 8px;
+  color: var(--amber); background: var(--amber-weak); border: 1px solid #fde68a;
+  border-radius: var(--radius); padding: 9px 12px; font-size: 13px; margin-bottom: 8px;
 }
 .mono-text {
   font-family: Consolas, "Courier New", monospace; font-size: 13px;
-  background: var(--gray-weak); border-radius: 8px; padding: 10px 12px;
-  white-space: pre-wrap; word-break: break-all;
+  background: var(--gray-weak); border-radius: var(--radius); padding: 10px 12px;
+  white-space: pre-wrap; word-break: break-all; color: var(--text-2);
 }
 .snippet-cell { max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .error-text { color: var(--red); font-size: 14px; }
+.field-label { font-size: 13px; color: var(--muted); margin: 12px 0 5px; font-weight: 500; }
+
+/* 空状态 */
+.empty {
+  text-align: center; color: var(--muted); padding: 40px 0; font-size: 14px;
+  border: 1px dashed var(--border); border-radius: var(--radius-lg); background: #fafbfe;
+}
+
+/* 骨架屏（T40）：加载占位微光扫过 */
+.skeleton {
+  border-radius: 6px;
+  background: linear-gradient(90deg, #eef1f6 25%, #f7f9fc 45%, #eef1f6 65%);
+  background-size: 200% 100%;
+  animation: shimmer 1.3s infinite linear;
+}
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* 进度条（任务轮询）：渐变 + 流动条纹 */
 .progress-line { background: var(--gray-weak); border-radius: 999px; height: 10px; overflow: hidden; margin: 8px 0; }
-.progress-line > div { background: var(--primary); height: 100%; transition: width .4s; }
-.field-label { font-size: 13px; color: var(--muted); margin: 10px 0 4px; }
-.empty { text-align: center; color: var(--muted); padding: 28px 0; font-size: 14px; }
+.progress-line > div {
+  background: linear-gradient(90deg, #3b82f6, #2563eb);
+  height: 100%; transition: width 0.4s var(--ease); position: relative;
+}
+.progress-line > div::after {
+  content: ""; position: absolute; inset: 0;
+  background: repeating-linear-gradient(-55deg, rgba(255,255,255,0.22) 0 8px, transparent 8px 16px);
+  animation: stripes 0.9s infinite linear;
+}
+@keyframes stripes { from { background-position: 0 0; } to { background-position: 23px 0; } }
+
+/* ---------- 12. 弹窗 ---------- */
 .modal-overlay {
   position: fixed; inset: 0; background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(2px);
   display: flex; align-items: flex-start; justify-content: center;
   padding: 5vh 16px 16px; z-index: 50; overflow-y: auto;
+  animation: fadeIn 0.18s var(--ease);
 }
 .modal {
-  background: var(--card); border-radius: 12px; width: 100%; max-width: 760px;
-  padding: 18px 20px; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+  background: var(--card); border-radius: var(--radius-lg); width: 100%; max-width: 760px;
+  padding: 18px 22px; box-shadow: var(--shadow-lg);
   max-height: 90vh; display: flex; flex-direction: column;  /* T30.1：限高，标题常驻、正文内滚 */
+  animation: popIn 0.22s var(--ease);
+}
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes popIn {
+  from { opacity: 0; transform: translateY(10px) scale(0.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 .modal-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; flex-shrink: 0; }
 .modal-head h3 { margin: 0; font-size: 15px; flex: 1; }
 .modal-body { overflow-y: auto; min-height: 0; padding-right: 6px; }
 .modal-close {
   border: none; background: var(--gray-weak); color: var(--muted);
-  width: 30px; height: 30px; border-radius: 8px; cursor: pointer;
+  width: 30px; height: 30px; border-radius: var(--radius); cursor: pointer;
   font-size: 16px; line-height: 1; flex-shrink: 0;
+  transition: background 0.16s var(--ease), color 0.16s var(--ease), transform 0.16s var(--ease);
 }
-.modal-close:hover { background: var(--red-weak); color: var(--red); }
+.modal-close:hover { background: var(--red-weak); color: var(--red); transform: rotate(90deg); }
+
+/* ---------- 13. 无障碍与响应式 ---------- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+@media (max-width: 640px) {
+  .app-header { padding: 16px 18px; }
+  .tabs { padding: 8px 18px; }
+  .page { padding: 16px 18px 40px; }
+  .card { padding: 16px; }
+  .rank-card { flex-direction: column; }
+  .score-wrap { width: 100%; }
+}

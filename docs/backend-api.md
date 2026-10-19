@@ -183,6 +183,16 @@
 ```
 > score 为语义相似度（0–1，4位小数）；evidence 文案格式定稿见 [算法设计.md](算法设计.md) §4（全角冒号，前端原样展示）。
 
+### GET /api/match-tasks/{id}/score_distribution ｜无需登录 ｜T40
+- 全量分数分布：任务完成时流水线把**全部**候选简历的融合分存档 `match_score_dist`（与 Top-K 结果**同一批分数**，`ranking.hybrid_scores` 一次融合两处消费），本接口原样返回供前端画分布图。
+- 响应 `200`：
+```json
+{"code": 0, "message": "ok", "data": {"task_id": 1, "jd_title": "Python后端工程师",
+  "n_candidates": 1322, "scores": [0.9214, 0.8857, "...（降序，4位小数）"]}}
+```
+> 历史任务（存档表无行）返回 `n_candidates: 0, scores: []`，前端据此隐藏分布图，不算错误。
+- 错误：`404 E4041` 任务不存在；`409 E4091` 任务未完成（同 results 口径）。
+
 ---
 
 ## 4. 报告模块（M05）｜P1
