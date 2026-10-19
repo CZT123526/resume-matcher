@@ -92,6 +92,27 @@ Query：`page=1`、`page_size=20`、`parse_status`（可选过滤）。
 
 失败：E4041（id 不存在）。
 
+### GET /api/resumes/{id}/jd_recommendations?top_k=3 `200` ｜T39
+
+反向推荐（API-17）：这份简历最适合的 Top-K 岗位。`score` 为**校准融合分**
+（= α·语义百分位 + (1−α)·词面命中率，关键词<3 个向中性 0.5 收缩；α 取 MATCH_ALPHA），
+与正向匹配接口分数口径不同，不可直接比较。
+
+`data`：
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| resume_id | int | |
+| items[].jd_id | int | |
+| items[].title | string | 岗位名 |
+| items[].score | float | 校准融合分 ∈ [0,1]，降序 |
+| items[].semantic_percentile | float | 语义分在本岗位全池分布中的百分位 |
+| items[].keyword_hit | float | 词面命中率（原始值，未收缩） |
+| items[].n_keywords | int | 该 JD 抽取的关键词数 |
+| items[].evidence | array | string[]，同正向证据链（只解释不打分） |
+
+失败：E4041（id 不存在 / 岗位库为空）；E4001（简历尚未解析完成；top_k 越界由统一 400 包裹）。
+
 ### DELETE /api/resumes/{id} `200`（P1）
 
 删除简历及其关联实体；若已生成向量缓存，标记缓存失效（下次任务前重建）。

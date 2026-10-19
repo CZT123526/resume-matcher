@@ -212,3 +212,49 @@ def test_data_view():
     # 维度不做下限断言：测试环境为未拟合 TF-IDF 降级（dim=0），dev 为 BERT 768 维
     assert d["matching"]["vector_dim"] >= 0
     assert 0 <= len(d["matching"]["vector_preview"]) <= 8
+
+
+# ---------- 反向推荐（API-17，T39）----------
+
+def test_jd_recommendations_topk_and_desc():
+    """给简历推岗位：Top-K、分数降序、证据链齐全，Python 简历应命中 Python 岗"""
+    rid = client.post("/api/resumes/upload", files={"file": ("反向推荐.docx", _make_docx(RESUME_TEXT), "application/octet-stream")}).json()["data"]["resume_id"]
+    jid = client.post("/api/jds", json={"title": "Python后端开发工程师", "content": "职责：接口开发。要求：熟悉Python与FastAPI。"}).json()["data"]["jd_id"]
+    client.post("/api/jds", json={"title": "护士", "content": "职责：急诊科护理，执行医嘱。要求：护理学专业。"})
+    client.post("/api/match-tasks", json={"jd_id": jid, "top_k": 3})  # 触发向量缓存构建
+
+    r = client.get(f"/api/resumes/{rid}/jd_recommendations", params={"top_k": 2})
+    assert r.status_code == 200
+    d = r.json()["data"]
+    assert d["resume_id"] == rid and len(d["items"]) == 2
+    scores = [i["score"] for i in d["items"]]
+    assert scores == sorted(scores, reverse=True)
+    for item in d["items"]:
+        assert {"jd_id", "title", "score", "evidence"} <= set(item)
+        assert isinstance(item["evidence"], list)
+
+    r1 = client.get(f"/api/resumes/{rid}/jd_recommendations", params={"top_k": 1})
+    assert len(r1.json()["data"]["items"]) == 1
+
+
+def test_jd_recommendations_clamps_and_validates_topk():
+    rid = client.post("/api/resumes/upload", files={"file": ("topk钳位.docx", _make_docx(RESUME_TEXT), "application/octet-stream")}).json()["data"]["resume_id"]
+    # 全局 RequestValidationError 处理器把 FastAPI 422 转成统一 400 包裹
+    assert client.get(f"/api/resumes/{rid}/jd_recommendations", params={"top_k": 0}).status_code == 400
+    assert client.get(f"/api/resumes/{rid}/jd_recommendations", params={"top_k": 99}).status_code == 400
+
+
+def test_jd_recommendations_404_and_pending():
+    assert client.get("/api/resumes/999999/jd_recommendations").status_code == 404
+
+    from app.db import get_db
+
+    conn = get_db()
+    try:
+        cur = conn.execute("INSERT INTO resumes(file_name, file_type, parse_status) VALUES('未解析.docx','docx','pending')")
+        conn.commit()
+        pid = cur.lastrowid
+    finally:
+        conn.close()
+    r = client.get(f"/api/resumes/{pid}/jd_recommendations")
+    assert r.status_code == 400 and r.json()["code"] == "E4001"

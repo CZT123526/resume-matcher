@@ -6,7 +6,7 @@ from app.config import settings
 from app.db import get_db
 from app.svc.evidence import compute_evidence
 from app.svc.jd_parsing import build_jd_requirements
-from app.svc.lexical import extract_jd_keywords, keyword_hit_score
+from app.svc.lexical import adaptive_alpha, coverage_from_scores, extract_jd_keywords, keyword_hit_score
 from app.svc.ranking import hybrid_rank
 from app.svc.vectors import _current_resume_data, ensure_cache, load_query_encoder, structured_text
 
@@ -77,7 +77,14 @@ def run_match_pipeline(task_id: int, jd_id: int, top_k: int) -> None:
         lex_scores = {
             rid: keyword_hit_score(keywords, text) for rid, text in resume_texts.items()
         }
-        ranked = hybrid_rank(jd_vec, lex_scores, top_k, alpha=settings.MATCH_ALPHA)
+        alpha = settings.MATCH_ALPHA
+        if settings.MATCH_ADAPTIVE_ALPHA:
+            # T39 自适应 α：JD 关键词在语料里普遍找不到（覆盖率低）时词面分失去
+            # 区分度，按覆盖线性退向纯语义；覆盖满格时 α_eff=base 行为不变
+            alpha = adaptive_alpha(alpha, coverage_from_scores(lex_scores.values()))
+            logger.info("自适应 α：coverage=%.3f → α_eff=%.3f（base=%.2f）",
+                        coverage_from_scores(lex_scores.values()), alpha, settings.MATCH_ALPHA)
+        ranked = hybrid_rank(jd_vec, lex_scores, top_k, alpha=alpha)
         _set(conn, "running", 85)
 
         rows = []

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   uploadResume, listResumes, getResume, deleteResume, resumeFileUrl,
-  searchResumes, reparseResume, getResumeData,
+  searchResumes, reparseResume, getResumeData, getJdRecommendations,
 } from '../api'
 
 const STATUS_TEXT = { pending: '排队中', processing: '解析中', done: '已完成', failed: '失败' }
@@ -15,6 +15,7 @@ export default function Resumes() {
   const [total, setTotal] = useState(0)
   const [detail, setDetail] = useState(null)
   const [data, setData] = useState(null)        // 解析数据视图（API-16）
+  const [recs, setRecs] = useState(null)        // 反向推荐（API-17，T39）
   const [busy, setBusy] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [refreshedAt, setRefreshedAt] = useState('')
@@ -87,10 +88,22 @@ export default function Resumes() {
   const openDetail = async (id) => {
     setDetail(null)
     setData(null)
+    setRecs(null)
     try {
       setDetail(await getResume(id))
     } catch (e) {
       setMsg(`详情失败：${e.message}`)
+    }
+  }
+
+  // 反向推荐（T39）：done 简历可一键看 Top-3 岗位（校准融合分 + 证据链）
+  const openRecs = async (id) => {
+    setRecs({ loading: true })
+    try {
+      const d = await getJdRecommendations(id, 3)
+      setRecs({ loading: false, items: d.items })
+    } catch (e) {
+      setRecs({ loading: false, error: e.message })
     }
   }
 
@@ -131,7 +144,7 @@ export default function Resumes() {
   }
 
   // 详情/解析数据用弹窗展示（T30）：× 或点遮罩或 Esc 关闭
-  const closeModal = () => { setDetail(null); setData(null) }
+  const closeModal = () => { setDetail(null); setData(null); setRecs(null) }
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape') closeModal() }
     window.addEventListener('keydown', onKey)
@@ -224,7 +237,26 @@ export default function Resumes() {
               <button className="btn ghost" onClick={() => openFile(detail.resume_id)}>查看原件</button>
               <button className="btn ghost" onClick={() => openData(detail.resume_id)}>查看解析数据</button>
               <button className="btn ghost" onClick={() => onReparse(detail.resume_id)}>重新解析</button>
+              {detail.parse_status === 'done' && (
+                <button className="btn ghost" onClick={() => openRecs(detail.resume_id)}>推荐岗位</button>
+              )}
             </div>
+            {recs && (
+              <div style={{ marginBottom: 12 }}>
+                <div className="field-label">推荐岗位 Top-3（校准融合分 = α·语义百分位 + (1−α)·词面命中率，T39）</div>
+                {recs.loading && <span className="muted">计算中…（首次需构建岗位向量）</span>}
+                {recs.error && <span className="error-text">推荐失败：{recs.error}</span>}
+                {recs.items?.map((it, i) => (
+                  <div key={it.jd_id} style={{ marginBottom: 6 }}>
+                    <span className="chip ok">#{i + 1} {it.title}</span>
+                    <span className="chip">分 {it.score}</span>
+                    <span className="chip">语义百分位 {it.semantic_percentile}</span>
+                    <span className="chip">词面 {it.keyword_hit}/{it.n_keywords}词</span>
+                    <div className="muted" style={{ fontSize: 12 }}>{it.evidence.join('；') || '（无证据项）'}</div>
+                  </div>
+                ))}
+              </div>
+            )}
             {detail.parse_status === 'failed' && (
               <div className="error-text">解析失败：{detail.parse_error || '未知原因'}</div>
             )}
