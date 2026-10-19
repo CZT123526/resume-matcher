@@ -4,7 +4,13 @@ import math
 import numpy as np
 import pytest
 
-from app.svc.lexical import extract_jd_keywords, fuse, keyword_hit_score
+from app.svc.lexical import (
+    adaptive_alpha,
+    coverage_from_scores,
+    extract_jd_keywords,
+    fuse,
+    keyword_hit_score,
+)
 from app.svc import vectors as vectors_mod
 from app.svc.ranking import hybrid_rank
 
@@ -121,3 +127,34 @@ def test_hybrid_rank_missing_lex_is_neutral(monkeypatch):
     finals = {r["resume_id"]: r["score"] for r in ranked}
     # 全 0.5 词面 → 融合分 = 0.5·bert + 0.25，保序
     assert finals[101] > finals[102] > finals[103]
+
+
+# ---------- 自适应 α（T39）----------
+
+def test_adaptive_alpha_full_coverage_is_identity():
+    """覆盖满格 → α_eff=base，行为与固定 α 完全一致（主卷不受扰动）"""
+    assert adaptive_alpha(0.7, 1.0) == 0.7
+
+
+def test_adaptive_alpha_zero_coverage_is_pure_semantic():
+    """覆盖归零 → α_eff=1.0 纯语义（词面分失去区分度时不拖累主链路）"""
+    assert adaptive_alpha(0.7, 0.0) == 1.0
+    assert adaptive_alpha(0.5, 0.0) == 1.0
+
+
+def test_adaptive_alpha_interpolates_monotonically():
+    """中间线性过渡：覆盖率越低 α_eff 越高，且永不越界 [base, 1.0]"""
+    assert adaptive_alpha(0.7, 0.5) == pytest.approx(0.85)
+    prev = 0.0
+    for cov in (1.0, 0.75, 0.5, 0.25, 0.0):
+        a = adaptive_alpha(0.7, cov)
+        assert a >= prev - 1e-9
+        assert 0.7 <= a <= 1.0
+        prev = a
+
+
+def test_coverage_from_scores_threshold_and_empty():
+    """>=0.5 计命中（与 keyword_hit_score 中性值口径一致）；空池返回 1.0"""
+    assert coverage_from_scores([0.9, 0.5, 0.3, 0.0]) == 0.5
+    assert coverage_from_scores([]) == 1.0
+    assert coverage_from_scores([0.49, 0.51]) == 0.5

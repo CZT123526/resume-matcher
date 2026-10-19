@@ -113,3 +113,27 @@ def fuse(bert_score: float, lex_score: float, alpha: float) -> float:
     两输入都在 [0,1]，融合分天然 [0,1]。
     """
     return alpha * bert_score + (1.0 - alpha) * lex_score
+
+
+def coverage_from_scores(lex_scores) -> float:
+    """词面覆盖率：命中率 ≥0.5 的简历占比 ∈ [0,1]（T39 自适应 α 的输入）。
+
+    0.5 是 keyword_hit_score 无关键词时的中性值——只统计"真有词面证据"的份。
+    空池返回 1.0（无候选即无降权理由，α 保持基准不变）。
+    """
+    scores = list(lex_scores)
+    if not scores:
+        return 1.0
+    return sum(1 for s in scores if s >= 0.5) / len(scores)
+
+
+def adaptive_alpha(base_alpha: float, coverage: float) -> float:
+    """自适应 α（T39，算法设计 §3.2b）：词面覆盖越低越靠语义。
+
+    α_eff = base + (1-base)·(1-coverage)
+      coverage=1 → α_eff=base（词面证据普遍可得，行为与固定 α 完全一致）；
+      coverage=0 → α_eff=1.0（JD 关键词在语料里普遍找不到，词面分失去区分度，
+                   退回纯语义，避免 T37 改写考卷上重排层拖累主链路的情形）。
+    中间线性过渡，无需新超参。
+    """
+    return base_alpha + (1.0 - base_alpha) * (1.0 - coverage)

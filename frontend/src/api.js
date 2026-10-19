@@ -40,6 +40,9 @@ export const searchResumes = (q, limit = 20) =>
   request(`/resumes/search?q=${encodeURIComponent(q)}&limit=${limit}`)
 export const reparseResume = (id) => request(`/resumes/${id}/reparse`, { method: 'POST' })
 export const getResumeData = (id) => request(`/resumes/${id}/data`)
+// 反向推荐（API-17，T39）：这份简历最适合哪些岗位（Top-K JD，校准融合分）
+export const getJdRecommendations = (id, topK = 3) =>
+  request(`/resumes/${id}/jd_recommendations?top_k=${topK}`)
 
 // ---------- JD ----------
 export const createJd = (title, content) => request('/jds', jsonInit('POST', { title, content }))

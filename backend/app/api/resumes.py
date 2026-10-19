@@ -160,6 +160,14 @@ def resume_detail(resume_id: int):
     })
 
 
+@router.get("/{resume_id}/jd_recommendations")
+def jd_recommendations(resume_id: int, top_k: int = Query(3, ge=1, le=10)):
+    """反向推荐（API-17，T39）：这份简历最适合哪些岗位——Top-K JD + 融合分 + 证据链"""
+    from app.svc.recommend import recommend_jds_for_resume
+
+    return ok(recommend_jds_for_resume(resume_id, top_k))
+
+
 @router.get("/{resume_id}/data")
 def resume_data(resume_id: int):
     """解析数据视图（API-16，T29）：这份简历被读成了什么数据——全文/实体/匹配输入/向量"""

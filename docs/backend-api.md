@@ -96,6 +96,25 @@
 }}
 ```
 
+### GET /api/resumes/{id}/jd_recommendations?top_k=3 ｜无需登录 ｜T39
+反向推荐（API-17）：给定一份简历，返回它最适合的 Top-K 岗位。评分是**跨 JD 比较**，
+用双侧校准（§3.2c）：`score = α·语义百分位 + (1−α)·词面命中率（关键词<3 个向中性收缩）`，
+α 取 `MATCH_ALPHA`。**注意 score 为校准融合分，与正向匹配接口（POST /api/match-tasks）
+的分数口径不同，不可直接比较**；正向链路不受影响（JD 内部排序对单调变换不敏感）。
+- 响应 `200`：
+```json
+{"code": 0, "message": "ok", "data": {
+  "resume_id": 57,
+  "items": [{"jd_id": 16, "title": "Java后端开发工程师", "score": 0.8198,
+             "semantic_percentile": 0.9569, "keyword_hit": 0.5, "n_keywords": 8,
+             "evidence": ["技能重叠：Spring/MySQL/Redis/Java (4/8)", "缺少技能：Spring Boot、CI/CD"]}]}
+}
+```
+- `score` ∈ [0,1] 降序；`semantic_percentile` = 该简历语义分在本岗位全池分布中的百分位；
+  `keyword_hit`/`n_keywords` = 词面命中率/抽取关键词数（原始值，未收缩）；`evidence` 同正向证据链（只解释不打分）
+- 400 `E4001`：简历尚未解析完成（top_k 合法域 1~10，越界由统一 400 包裹返回）
+- 404 `E4041`：简历不存在，或岗位库为空
+
 ### DELETE /api/resumes/{id} ｜无需登录 ｜P1
 - 响应 `200`：`{"code": 0, "message": "ok", "data": {"resume_id": 1, "deleted": true}}`
 - 级联清除：实体、原件文件、全文索引（T29）
