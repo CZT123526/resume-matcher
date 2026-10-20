@@ -18,6 +18,26 @@ router = APIRouter(prefix="/api/resumes", tags=["resumes"])
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # 契约：≤10MB
 SUPPORTED_EXTS = {".pdf", ".docx"}
 
+# 语料批次时间窗（2026-10-19 两份加试考卷的批量导入区间，T37/T38）。
+# 为什么用时间窗：改写卷 286~341 字、半规范卷 148~322 字，字数区间重叠分不开；
+# 两个时间窗互不重叠且各只含一次批量导入（160/100 份恰好对账）。窗口外的，
+# 含此后新上传的简历，一律归业务语料。
+CORPUS_WINDOWS = {
+    "rewrite": ("2026-10-19 13:30:00", "2026-10-19 14:30:00"),   # T37 正文避词改写考卷 160 份
+    "semispec": ("2026-10-19 15:00:00", "2026-10-19 16:00:00"),  # T38 半规范排版考卷 100 份
+}
+
+
+def _corpus_conds(corpus: str) -> list[str]:
+    """corpus 过滤条件（created_at 为 'YYYY-MM-DD HH:MM:SS' 文本，字典序即时间序；常量拼接无注入面）"""
+    if corpus == "all":
+        return []
+    if corpus == "business":
+        ranges = [f"(created_at >= '{s}' AND created_at < '{e}')" for s, e in CORPUS_WINDOWS.values()]
+        return [f"NOT ({' OR '.join(ranges)})"]
+    start, end = CORPUS_WINDOWS[corpus]
+    return [f"(created_at >= '{start}' AND created_at < '{end}')"]
+
 
 @router.post("/upload", status_code=202)
 async def upload_resume(background: BackgroundTasks, file: UploadFile = File(...)):
@@ -56,14 +76,22 @@ def list_resumes(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=500),
     parse_status: str | None = Query(None),
+    corpus: str = Query("all", pattern="^(all|business|rewrite|semispec)$"),
 ):
-    """分页列表（不含 raw_text 大字段）；parse_status 可选过滤"""
+    """分页列表（不含 raw_text 大字段）；parse_status / corpus 可选过滤；响应带四类语料计数"""
     if parse_status is not None and parse_status not in {"pending", "processing", "done", "failed"}:
         raise AppError(ErrorCode.BAD_PARAM, "parse_status 取值非法")
 
-    where, params = "", []
+    conds, params = [], []
     if parse_status:
-        where, params = "WHERE parse_status=?", [parse_status]
+        conds.append("parse_status=?")
+        params.append(parse_status)
+    conds += _corpus_conds(corpus)
+    where = f"WHERE {' AND '.join(conds)}" if conds else ""
+
+    biz_cond = _corpus_conds("business")[0]
+    rw_cond = _corpus_conds("rewrite")[0]
+    sw_cond = _corpus_conds("semispec")[0]
 
     conn = get_db()
     try:
@@ -73,6 +101,13 @@ def list_resumes(
             "ORDER BY id DESC LIMIT ? OFFSET ?",
             [*params, page_size, (page - 1) * page_size],
         ).fetchall()
+        n_all, n_biz, n_rw, n_sw = conn.execute(
+            f"SELECT COUNT(*),"
+            f" SUM(CASE WHEN {biz_cond} THEN 1 ELSE 0 END),"
+            f" SUM(CASE WHEN {rw_cond} THEN 1 ELSE 0 END),"
+            f" SUM(CASE WHEN {sw_cond} THEN 1 ELSE 0 END)"
+            " FROM resumes"
+        ).fetchone()
     finally:
         conn.close()
 
@@ -81,7 +116,10 @@ def list_resumes(
          "parse_status": r["parse_status"], "created_at": iso_time(r["created_at"])}
         for r in rows
     ]
-    return ok({"total": total, "items": items})
+    return ok({
+        "total": total, "items": items,
+        "corpus_counts": {"all": n_all, "business": n_biz, "rewrite": n_rw, "semispec": n_sw},
+    })
 
 
 @router.get("/search")

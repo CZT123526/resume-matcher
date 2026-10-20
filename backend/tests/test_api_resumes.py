@@ -72,6 +72,41 @@ def test_list_pagination_and_filter():
     assert r3.status_code == 400 and r3.json()["code"] == "E4001"
 
 
+def test_list_corpus_filter():
+    """corpus 语料筛选：按 T37/T38 考卷时间窗分批，窗口外（含新上传）一律业务语料"""
+    from app.db import get_db
+    conn = get_db()
+    try:
+        conn.execute(
+            "INSERT INTO resumes(file_name, file_type, parse_status, created_at, raw_text) "
+            "VALUES('改写卷.docx','docx','done','2026-10-19 13:38:00','正文')")
+        conn.execute(
+            "INSERT INTO resumes(file_name, file_type, parse_status, created_at, raw_text) "
+            "VALUES('半规范卷.docx','docx','done','2026-10-19 15:25:00','正文')")
+        conn.execute(
+            "INSERT INTO resumes(file_name, file_type, parse_status, created_at, raw_text) "
+            "VALUES('业务简历.docx','docx','done','2026-10-20 09:00:00','正文')")
+        conn.commit()
+    finally:
+        conn.close()
+
+    counts = client.get("/api/resumes", params={"page_size": 1}).json()["data"]["corpus_counts"]
+    assert counts["rewrite"] >= 1 and counts["semispec"] >= 1 and counts["business"] >= 1
+    assert counts["all"] == counts["business"] + counts["rewrite"] + counts["semispec"]
+
+    def names(corpus):
+        d = client.get("/api/resumes", params={"corpus": corpus, "page_size": 500}).json()["data"]
+        return [i["file_name"] for i in d["items"]]
+
+    assert "改写卷.docx" in names("rewrite") and "业务简历.docx" not in names("rewrite")
+    assert "半规范卷.docx" in names("semispec") and "改写卷.docx" not in names("semispec")
+    assert "业务简历.docx" in names("business") and "改写卷.docx" not in names("business")
+
+    # 非法 corpus 走全局校验处理器：契约统一 400 + E4001（与 parse_status 一致）
+    r4 = client.get("/api/resumes", params={"corpus": "bogus"})
+    assert r4.status_code == 400 and r4.json()["code"] == "E4001"
+
+
 def test_detail_404():
     r = client.get("/api/resumes/999999")
     assert r.status_code == 404 and r.json()["code"] == "E4041"

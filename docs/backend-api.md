@@ -46,12 +46,13 @@
 ```
 
 ### GET /api/resumes ｜无需登录
-- Query：`page=1`、`page_size=20`、`parse_status=pending|processing|done|failed`（可省）
+- Query：`page=1`、`page_size=20`、`parse_status=pending|processing|done|failed`（可省）、`corpus=all|business|rewrite|semispec`（可省，语料筛选）
+- `corpus` 按批次时间窗区分（app/api/resumes.py `CORPUS_WINDOWS`）：`rewrite` 为 T37 改写考卷 160 份、`semispec` 为 T38 半规范考卷 100 份，`business` 为窗口外全部（含此后新上传）；响应恒带四类计数 `corpus_counts`，前端下拉直接展示
 - 响应 `200`：
 ```json
 {"code": 0, "message": "ok", "data": {"total": 2, "items": [
   {"resume_id": 1, "file_name": "张三.pdf", "parse_status": "done", "created_at": "2026-10-10T15:00:00"}
-]}}
+], "corpus_counts": {"all": 1322, "business": 1062, "rewrite": 160, "semispec": 100}}}
 ```
 
 ### GET /api/resumes/{id} ｜无需登录

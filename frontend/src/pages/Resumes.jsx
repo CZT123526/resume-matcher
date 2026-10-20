@@ -15,6 +15,8 @@ export default function Resumes() {
   const [items, setItems] = useState([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
+  const [corpus, setCorpus] = useState('all')       // 语料筛选：all/business/rewrite/semispec
+  const [corpusCounts, setCorpusCounts] = useState(null)
   const [detail, setDetail] = useState(null)
   const [data, setData] = useState(null)        // 解析数据视图（API-16）
   const [recs, setRecs] = useState(null)        // 反向推荐（API-17，T39）
@@ -27,17 +29,19 @@ export default function Resumes() {
   const [searchInfo, setSearchInfo] = useState(null) // {q, total}
   const fileRef = useRef(null)
 
+  // 语料筛选切换时 refresh 重建 → 挂载效应自动重拉第 1 页，无需在 onChange 里手动请求
   const refresh = useCallback(async (nextPage = 1) => {
     setRefreshing(true)
     try {
-      let d = await listResumes(nextPage, PAGE_SIZE)
+      let d = await listResumes(nextPage, PAGE_SIZE, corpus)
       // 翻到超出总页数的空页（如末页最后一条刚被删）时回退一页
       if (!(d.items || []).length && nextPage > 1) {
-        d = await listResumes(nextPage - 1, PAGE_SIZE)
+        d = await listResumes(nextPage - 1, PAGE_SIZE, corpus)
         nextPage -= 1
       }
       setItems(d.items || [])
       setTotal(d.total || 0)
+      setCorpusCounts(d.corpus_counts || null)
       setPage(nextPage)
       setSearchInfo(null)
       setSearchQ('')
@@ -48,7 +52,7 @@ export default function Resumes() {
       setRefreshing(false)
       setLoaded(true)
     }
-  }, [])
+  }, [corpus])
 
   useEffect(() => { refresh(1) }, [refresh])
 
@@ -224,6 +228,15 @@ export default function Resumes() {
           <button className="btn ghost" disabled={refreshing} onClick={onSearch}>搜索</button>
           {searchInfo && (
             <button className="btn ghost" onClick={() => refresh(1)}>返回全部</button>
+          )}
+          {!searchInfo && (
+            <select value={corpus} disabled={refreshing} onChange={(e) => setCorpus(e.target.value)}
+              title="按语料批次筛选列表；数字为各类份数">
+              <option value="all">全部语料{corpusCounts ? ` · ${corpusCounts.all}` : ''}</option>
+              <option value="business">正式语料{corpusCounts ? ` · ${corpusCounts.business}` : ''}</option>
+              <option value="rewrite">改写考卷{corpusCounts ? ` · ${corpusCounts.rewrite}` : ''}</option>
+              <option value="semispec">半规范考卷{corpusCounts ? ` · ${corpusCounts.semispec}` : ''}</option>
+            </select>
           )}
         </div>
         {!searchInfo && <div className="muted" style={{ marginBottom: 8 }}>点击文件名打开原件 · 点击行查看解析详情</div>}

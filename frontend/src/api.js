@@ -29,8 +29,8 @@ export const uploadResume = (file) => {
   form.append('file', file)
   return request('/resumes/upload', { method: 'POST', body: form })
 }
-export const listResumes = (page = 1, pageSize = 50) =>
-  request(`/resumes?page=${page}&page_size=${pageSize}`)
+export const listResumes = (page = 1, pageSize = 50, corpus = 'all') =>
+  request(`/resumes?page=${page}&page_size=${pageSize}&corpus=${corpus}`)
 export const getResume = (id) => request(`/resumes/${id}`)
 export const deleteResume = (id) => request(`/resumes/${id}`, { method: 'DELETE' })
 // 简历原件地址（浏览器直接打开：PDF 预览 / DOCX 下载）
