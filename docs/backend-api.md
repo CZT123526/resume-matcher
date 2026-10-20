@@ -47,7 +47,7 @@
 
 ### GET /api/resumes ｜无需登录
 - Query：`page=1`、`page_size=20`、`parse_status=pending|processing|done|failed`（可省）、`corpus=all|business|rewrite|semispec`（可省，语料筛选）
-- `corpus` 按批次时间窗区分（app/api/resumes.py `CORPUS_WINDOWS`）：`rewrite` 为 T37 改写考卷 160 份、`semispec` 为 T38 半规范考卷 100 份，`business` 为窗口外全部（含此后新上传）；响应恒带四类计数 `corpus_counts`，前端下拉直接展示
+- `corpus` 按批次时间窗区分（app/api/resumes.py `CORPUS_WINDOWS`）：`rewrite` 为 T37 改写简历 160 份、`semispec` 为 T38 半规范简历 100 份，`business` 为窗口外全部（含此后新上传）；响应恒带四类计数 `corpus_counts`，前端下拉直接展示
 - 响应 `200`：
 ```json
 {"code": 0, "message": "ok", "data": {"total": 2, "items": [

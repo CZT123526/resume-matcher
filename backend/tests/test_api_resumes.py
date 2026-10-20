@@ -73,7 +73,7 @@ def test_list_pagination_and_filter():
 
 
 def test_list_corpus_filter():
-    """corpus 语料筛选：按 T37/T38 考卷时间窗分批，窗口外（含新上传）一律业务语料"""
+    """corpus 语料筛选：按 T37/T38 加试简历时间窗分批，窗口外（含新上传）一律正式简历"""
     from app.db import get_db
     conn = get_db()
     try:

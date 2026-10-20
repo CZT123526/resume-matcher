@@ -234,8 +234,8 @@ export default function Resumes() {
               title="按批次筛选简历，数字为各类份数">
               <option value="all">全部简历{corpusCounts ? ` · ${corpusCounts.all}` : ''}</option>
               <option value="business">正式简历{corpusCounts ? ` · ${corpusCounts.business}` : ''}</option>
-              <option value="rewrite">改写考卷{corpusCounts ? ` · ${corpusCounts.rewrite}` : ''}</option>
-              <option value="semispec">半规范考卷{corpusCounts ? ` · ${corpusCounts.semispec}` : ''}</option>
+              <option value="rewrite">改写简历{corpusCounts ? ` · ${corpusCounts.rewrite}` : ''}</option>
+              <option value="semispec">半规范简历{corpusCounts ? ` · ${corpusCounts.semispec}` : ''}</option>
             </select>
           )}
         </div>
