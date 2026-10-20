@@ -11,9 +11,12 @@ import { CanvasRenderer } from 'echarts/renderers'
 
 echarts.use([BarChart, GridComponent, MarkLineComponent, TooltipComponent, CanvasRenderer])
 
-export default function Chart({ option, height = 260 }) {
+export default function Chart({ option, height = 260, onClick }) {
   const ref = useRef(null)
   const chartRef = useRef(null)
+  // 点击回调经 ref 转发：父组件每次渲染换新函数也不需要重绑图表事件
+  const onClickRef = useRef(onClick)
+  onClickRef.current = onClick
 
   useEffect(() => {
     if (!ref.current) return undefined
@@ -22,6 +25,8 @@ export default function Chart({ option, height = 260 }) {
     } catch {
       return undefined
     }
+    const handler = (params) => onClickRef.current?.(params)
+    chartRef.current.on('click', handler)
     const onResize = () => chartRef.current?.resize()
     window.addEventListener('resize', onResize)
     return () => {

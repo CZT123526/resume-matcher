@@ -190,9 +190,10 @@
 - 响应 `200`：
 ```json
 {"code": 0, "message": "ok", "data": {"task_id": 1, "jd_title": "Python后端工程师",
-  "n_candidates": 1322, "scores": [0.9214, 0.8857, "...（降序，4位小数）"]}}
+  "n_candidates": 1322, "scores": [0.9214, 0.8857, "…（降序，4位小数）"],
+  "items": [{"resume_id": 1, "score": 0.9214, "name": "张三"}, "…与 scores 严格同序"]}}
 ```
-> 历史任务（存档表无行）返回 `n_candidates: 0, scores: []`，前端据此隐藏分布图，不算错误。
+> `items` 为 T43 候选人明细（点分布图柱子反查分数段简历用）；历史任务（存档表无 ids_json）返回空数组，前端点击自动忽略。历史任务（存档表无行）返回 `n_candidates: 0, scores: [], items: []`，前端据此隐藏分布图，不算错误。
 - 错误：`404 E4041` 任务不存在；`409 E4091` 任务未完成（同 results 口径）。
 
 ---

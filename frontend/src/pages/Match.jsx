@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
-import { listJds, createMatchTask, getMatchTask, getMatchResults, getMatchScoreDistribution } from '../api'
+import { listJds, createMatchTask, getMatchTask, getMatchResults, getMatchScoreDistribution, resumeFileUrl } from '../api'
 
 // 图表懒加载（T40）：echarts 只在出结果后按需拉取，主包保持轻量
 const Chart = lazy(() => import('../components/Chart'))
@@ -13,7 +13,8 @@ const chipKind = (text) => {
 
 // 全量融合分直方图（T40）：降序分数按分值等宽分桶，前 topN 名单独堆一列（橙色）
 // ——候选人与非候选人一眼看出分层；数据与排名列表同源（API-18）。
-function buildDistOption(scores, topN) {
+// T43：binScores 单独导出 binOf 映射，点柱子时按下标反查该桶的候选人（与画图同一分箱，永不错位）
+function binScores(scores, topN) {
   const n = scores.length
   const min = Math.min(...scores)
   const max = Math.max(...scores)
@@ -21,12 +22,19 @@ function buildDistOption(scores, topN) {
   const span = max - min || Math.max(max * 0.001, 0.0001)
   const inTop = new Array(nBins).fill(0)
   const rest = new Array(nBins).fill(0)
+  const binOf = new Array(n).fill(0)
   scores.forEach((s, i) => {
     const b = Math.min(nBins - 1, Math.floor(((s - min) / span) * nBins))
+    binOf[i] = b
     if (i < topN) inTop[b]++
     else rest[b]++
   })
   const labels = inTop.map((_, i) => (min + (span * (i + 0.5)) / nBins).toFixed(2))
+  return { min, span, nBins, labels, inTop, rest, binOf }
+}
+
+function buildDistOption(scores, topN) {
+  const { labels, inTop, rest } = binScores(scores, topN)
   return {
     grid: { left: 44, right: 12, top: 34, bottom: 26 },
     tooltip: { trigger: 'axis' },
@@ -45,11 +53,11 @@ function buildDistOption(scores, topN) {
     },
     series: [
       {
-        name: `Top-${topN} 候选`, type: 'bar', stack: 'dist', data: inTop,
+        name: `Top-${topN} 候选`, type: 'bar', stack: 'dist', data: inTop, cursor: 'pointer',
         itemStyle: { color: '#d97706', borderRadius: [3, 3, 0, 0] }, barMaxWidth: 24,
       },
       {
-        name: '其他候选人', type: 'bar', stack: 'dist', data: rest,
+        name: '其他候选人', type: 'bar', stack: 'dist', data: rest, cursor: 'pointer',
         itemStyle: { color: '#93c5fd', borderRadius: [3, 3, 0, 0] }, barMaxWidth: 24,
       },
     ],
@@ -63,6 +71,7 @@ export default function Match() {
   const [task, setTask] = useState(null)      // {task_id, status, progress}
   const [results, setResults] = useState(null)
   const [dist, setDist] = useState(null)      // 全量分数分布（API-18，T40）
+  const [binSel, setBinSel] = useState(null)  // 点选的分布柱：{label, count, list}，null=展示默认 Top-K
   const [msg, setMsg] = useState('')
   const [busy, setBusy] = useState(false)
   const timerRef = useRef(null)
@@ -100,6 +109,18 @@ export default function Match() {
     }, 2000)
   }
 
+  // 点柱子 → 反查该分数段的候选人（与画图同一分箱函数，永不错位）；历史任务无明细则忽略
+  const onBinClick = (params) => {
+    if (!dist?.scores?.length || !dist.items?.length) return
+    const { min, span, nBins, binOf } = binScores(dist.scores, results.items.length)
+    const b = params.dataIndex
+    const list = dist.items.filter((_, i) => binOf[i] === b)
+    if (!list.length) return
+    const lo = (min + (span * b) / nBins).toFixed(3)
+    const hi = (min + (span * (b + 1)) / nBins).toFixed(3)
+    setBinSel({ label: `${lo} ~ ${hi}`, count: list.length, list })
+  }
+
   const onRun = async () => {
     if (!jdId) {
       setMsg('请先在「岗位 JD」页创建一条 JD')
@@ -109,6 +130,7 @@ export default function Match() {
     setMsg('')
     setResults(null)
     setDist(null)
+    setBinSel(null)
     setTask(null)
     try {
       const t = await createMatchTask(Number(jdId), Number(topK))
@@ -148,15 +170,46 @@ export default function Match() {
         <div className="card">
           <h3>全库匹配分分布 · {dist.n_candidates} 人</h3>
           <div className="muted" style={{ marginBottom: 8 }}>
-            与下方排名同一批融合分（Top-K 截断前的全量），橙色为本次召回的 Top-{results.items.length}
+            与下方排名同一批融合分 · Top-K 截断前的全量 · 橙色为本次召回的 Top-{results.items.length}
+            {dist.items?.length ? ' · 点击柱子查看该分数段的候选人' : ''}
           </div>
           <Suspense fallback={<div className="skeleton" style={{ height: 240 }} />}>
-            <Chart option={buildDistOption(dist.scores, results.items.length)} height={240} />
+            <Chart option={buildDistOption(dist.scores, results.items.length)} height={240} onClick={onBinClick} />
           </Suspense>
         </div>
       )}
 
-      {results && (
+      {results && binSel && (
+        <div className="card">
+          <h3>分数段 {binSel.label} · {binSel.count} 人</h3>
+          <div className="row" style={{ marginBottom: 8 }}>
+            <button className="btn ghost" onClick={() => setBinSel(null)}>
+              返回 Top-{results.items.length} 结果
+            </button>
+            <span className="muted">该融合分区间内的全部候选人，按分数降序；点击「打开」查看简历原件</span>
+          </div>
+          <table>
+            <thead>
+              <tr><th>#</th><th>姓名</th><th>简历</th><th>融合分</th><th>原件</th></tr>
+            </thead>
+            <tbody>
+              {binSel.list.map((x, i) => (
+                <tr key={x.resume_id}>
+                  <td>{i + 1}</td>
+                  <td>{x.name}</td>
+                  <td className="muted">简历 {x.resume_id}</td>
+                  <td>{x.score}</td>
+                  <td>
+                    <a className="file-link" href={resumeFileUrl(x.resume_id)} target="_blank" rel="noreferrer">打开</a>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {results && !binSel && (
         <div className="card">
           <h3>匹配结果 · {results.jd_title} · 共 {results.items.length} 人</h3>
           {results.items.length === 0 ? (

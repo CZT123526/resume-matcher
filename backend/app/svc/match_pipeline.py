@@ -95,12 +95,25 @@ def run_match_pipeline(task_id: int, jd_id: int, top_k: int) -> None:
              "semantic": round(float(bert_arr[i]), 4), "lexical": round(float(lex_arr[i]), 4)}
             for i in top
         ]
-        dist_scores = sorted((round(float(s), 4) for s in final), reverse=True)
+        # T43 全量分数 + 候选人明细：先按 简历×分数 配对再降序，保证 scores 与
+        # items 严格同序（前端点分布图柱子时按下标反查"这个分数段是谁"）。
+        # 名字取 name 实体，缺失则占位 候选人{id}（与结果接口同口径）
+        name_rows = conn.execute(
+            "SELECT resume_id, field_value FROM entities WHERE field_key='name'"
+        ).fetchall()
+        names = {int(r["resume_id"]): r["field_value"] for r in name_rows}
+        dist_items = sorted(
+            ({"resume_id": int(rid), "score": round(float(s), 4),
+              "name": names.get(int(rid), f"候选人{rid}")}
+             for rid, s in zip(order, final)),
+            key=lambda x: x["score"], reverse=True,
+        )
+        dist_scores = [x["score"] for x in dist_items]
         conn.execute(
-            "INSERT INTO match_score_dist(task_id, n_candidates, scores_json) VALUES(?,?,?) "
+            "INSERT INTO match_score_dist(task_id, n_candidates, scores_json, ids_json) VALUES(?,?,?,?) "
             "ON CONFLICT(task_id) DO UPDATE SET n_candidates=excluded.n_candidates, "
-            "scores_json=excluded.scores_json",
-            (task_id, len(dist_scores), json.dumps(dist_scores)),
+            "scores_json=excluded.scores_json, ids_json=excluded.ids_json",
+            (task_id, len(dist_scores), json.dumps(dist_scores), json.dumps(dist_items, ensure_ascii=False)),
         )
         _set(conn, "running", 85)
 

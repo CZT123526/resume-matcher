@@ -100,6 +100,13 @@ def test_match_full_flow():
     assert all(0.0 <= s <= 1.0 for s in d["scores"])
     assert d["scores"][0] == items[0]["score"]
 
+    # T43 候选人明细：与 scores 严格同序，第一名同简历；字段三元组齐备
+    assert d["items"] and d["items"][0]["score"] == items[0]["score"]
+    assert d["items"][0]["resume_id"] == items[0]["resume_id"]
+    assert d["items"][0]["name"]
+    assert all(set(x) == {"resume_id", "score", "name"} for x in d["items"])
+    assert [x["score"] for x in d["items"]] == d["scores"]
+
 
 def test_jd_delete_cascades_tasks():
     """T32：删 JD 连带删名下匹配任务（结果随 FK 级联），重复删 404"""
@@ -159,7 +166,7 @@ def test_score_distribution_legacy_task_empty():
 
     d = client.get(f"/api/match-tasks/{legacy_id}/score_distribution").json()["data"]
     assert d == {"task_id": legacy_id, "jd_title": "Python后端工程师",
-                 "n_candidates": 0, "scores": []}
+                 "n_candidates": 0, "scores": [], "items": []}
 
 
 def test_model_info():

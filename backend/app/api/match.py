@@ -114,7 +114,7 @@ def match_task_score_distribution(task_id: int):
         if task["status"] != "done":
             raise AppError(ErrorCode.CONFLICT, f"任务尚未完成（当前 {task['status']}），完成后再取结果")
         dist = conn.execute(
-            "SELECT n_candidates, scores_json FROM match_score_dist WHERE task_id=?",
+            "SELECT n_candidates, scores_json, ids_json FROM match_score_dist WHERE task_id=?",
             (task_id,),
         ).fetchone()
         jd = conn.execute("SELECT title FROM jds WHERE id=?", (task["jd_id"],)).fetchone()
@@ -122,11 +122,14 @@ def match_task_score_distribution(task_id: int):
         conn.close()
 
     scores = json.loads(dist["scores_json"]) if dist else []
+    # T43 候选人明细（与 scores 严格同序）：点柱子反查分数段简历用；历史任务无存档为空数组
+    items = json.loads(dist["ids_json"]) if dist and dist["ids_json"] else []
     return ok({
         "task_id": task_id,
         "jd_title": jd["title"] if jd else "",
         "n_candidates": dist["n_candidates"] if dist else 0,
         "scores": scores,
+        "items": items,
     })
 
 

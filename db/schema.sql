@@ -70,6 +70,7 @@ CREATE TABLE IF NOT EXISTS match_score_dist (
     task_id       INTEGER PRIMARY KEY REFERENCES match_tasks(id) ON DELETE CASCADE, -- 所属任务
     n_candidates  INTEGER NOT NULL,                  -- 参与排名的简历总数（=融合分个数）
     scores_json   TEXT    NOT NULL,                  -- 全量融合分JSON数组（降序，4位小数）
+    ids_json      TEXT,                              -- 候选人明细JSON（T43：[{resume_id,score,name}]，与scores同序），旧行为 NULL
     created_at    TEXT    NOT NULL DEFAULT (datetime('now','localtime')) -- 生成时间
 );
 

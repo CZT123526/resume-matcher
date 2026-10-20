@@ -53,10 +53,13 @@ def init_db(path: Optional[Path] = None) -> None:
     try:
         conn.executescript(schema)
         # 轻量列迁移：CREATE TABLE IF NOT EXISTS 不会给已存在的表补新列，
-        # 这里按 PRAGMA 检查、缺则 ALTER（幂等，T42 分数构成明细）
+        # 这里按 PRAGMA 检查、缺则 ALTER（幂等；T42 分数构成明细 / T43 候选人明细）
         cols = {r[1] for r in conn.execute("PRAGMA table_info(match_results)")}
         if cols and "detail_json" not in cols:
             conn.execute("ALTER TABLE match_results ADD COLUMN detail_json TEXT")
+        cols = {r[1] for r in conn.execute("PRAGMA table_info(match_score_dist)")}
+        if cols and "ids_json" not in cols:
+            conn.execute("ALTER TABLE match_score_dist ADD COLUMN ids_json TEXT")
         conn.commit()
     finally:
         conn.close()
