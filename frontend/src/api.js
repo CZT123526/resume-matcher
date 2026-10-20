@@ -46,7 +46,7 @@ export const getJdRecommendations = (id, topK = 3) =>
 
 // ---------- JD ----------
 export const createJd = (title, content) => request('/jds', jsonInit('POST', { title, content }))
-export const listJds = (page = 1, pageSize = 100) =>
+export const listJds = (page = 1, pageSize = 20) =>
   request(`/jds?page=${page}&page_size=${pageSize}`)
 export const getJd = (id) => request(`/jds/${id}`)
 export const deleteJd = (id) => request(`/jds/${id}`, { method: 'DELETE' })
