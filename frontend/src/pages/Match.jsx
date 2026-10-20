@@ -68,7 +68,8 @@ export default function Match() {
   const timerRef = useRef(null)
 
   useEffect(() => {
-    listJds().then((d) => {
+    // 下拉是岗位全量选项，显式拉到后端单页上限 100（列表页的分页默认值 20 与此无关）
+    listJds(1, 100).then((d) => {
       setJds(d.items || [])
       if (d.items?.length) setJdId(String(d.items[0].jd_id))
     }).catch((e) => setMsg(`加载 JD 失败：${e.message}`))
