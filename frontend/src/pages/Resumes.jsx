@@ -243,7 +243,15 @@ export default function Resumes() {
             <button className="btn ghost" disabled={page <= 1 || refreshing} onClick={() => refresh(page - 1)}>
               上一页
             </button>
-            <span className="muted">第 {page} / {totalPages} 页</span>
+            <span className="pager-jump">
+              第
+              <select value={page} disabled={refreshing} onChange={(e) => refresh(Number(e.target.value))}>
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+                  <option key={p} value={p}>{p}</option>
+                ))}
+              </select>
+              / {totalPages} 页
+            </span>
             <button className="btn ghost" disabled={page >= totalPages || refreshing} onClick={() => refresh(page + 1)}>
               下一页
             </button>

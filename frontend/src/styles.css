@@ -157,6 +157,8 @@ tr.clickable:hover { background: var(--primary-softer); }
 
 /* 分页条 */
 .pager { display: flex; gap: 14px; align-items: center; justify-content: center; margin-top: 14px; }
+.pager-jump { display: inline-flex; gap: 7px; align-items: center; font-size: 13px; color: var(--muted); }
+.pager select { padding: 5px 8px; }
 
 /* ---------- 8. 徽章与标签 ---------- */
 .badge {
