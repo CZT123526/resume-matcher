@@ -197,6 +197,21 @@ def test_title_company_school_fragments_dropped():
     assert skills == {"mysql", "sql"}
 
 
+def test_name_fixed_from_filename_prefix():
+    """回归（T45，批量重解析实测 113 份）：文件名前缀兜底姓名——漏抽补上、
+    截断纠正（乔鹏→乔鹏飞），完全对不上与通用词文件名不动"""
+    from app.svc.pipeline import _fix_name_from_filename as fix
+
+    assert fix([], "乔鹏飞_翻译.docx") == [
+        {"field_key": "name", "field_value": "乔鹏飞", "source": "rule"}]
+    ents = [{"field_key": "name", "field_value": "静姝", "source": "bert"}]
+    fixed = fix(ents, "杨静姝_翻译.docx")
+    assert fixed[0]["field_value"] == "杨静姝" and fixed[0]["source"] == "rule"
+    ents2 = [{"field_key": "name", "field_value": "李雷", "source": "bert"}]
+    assert fix(ents2, "韩梅梅_翻译.docx")[0]["field_value"] == "李雷"   # 完全不同 → 不动
+    assert fix([], "简历_终稿.docx") == []                              # 通用词文件名 → 不动
+
+
 def test_bert_garbage_skills_and_company_fragments_filtered(monkeypatch):
     """回归（T45，乔鹏飞_翻译 实况）：BERT 粘连技能与两字公司残渣被护栏拦下，
     丢空字段由规则词典兜底补齐——护栏先过、兜底后补，顺序不能反"""
