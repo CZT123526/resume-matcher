@@ -7,14 +7,15 @@ const Chart = lazy(() => import('../components/Chart'))
 // 冻结评测口径（v4 主考卷 8142 对/46 查询，NDCG@10；T39 自适应 α 为三池验证后默认值）。
 // 数据来源：docs/eval/eval_report.json、adaptive_alpha_report.json、semispec_report.json、
 // stress_report.json（2026-10-19 冻结）。前端只做展示，评测一律以 docs/eval/ 产物为准。
+// 展示纪律：界面文案不写括号注解——归类信息用「·」分隔进条形图标签，细节进脚注分句（用户要求）
 const EVAL_MAIN = [
   { name: '对比微调 bert_pair *', v: 1.0, kind: 'ablation' },
-  { name: 'TF-IDF（词面对照）', v: 0.9898, kind: 'baseline' },
-  { name: 'DeepSeek（大模型对照）', v: 0.9783, kind: 'baseline' },
-  { name: '本文方法（自适应 α）', v: 0.9522, kind: 'ours' },
-  { name: '本文方法（固定 α=0.7）', v: 0.9305, kind: 'ours' },
-  { name: '纯语义 DAPT（消融）', v: 0.7483, kind: 'ablation' },
-  { name: '底座 BERT（消融）', v: 0.6968, kind: 'ablation' },
+  { name: 'TF-IDF · 词面对照', v: 0.9898, kind: 'baseline' },
+  { name: 'DeepSeek · 大模型对照', v: 0.9783, kind: 'baseline' },
+  { name: '本文方法 · 自适应 α', v: 0.9522, kind: 'ours' },
+  { name: '本文方法 · 固定 α=0.7', v: 0.9305, kind: 'ours' },
+  { name: '纯语义 DAPT · 消融', v: 0.7483, kind: 'ablation' },
+  { name: '底座 BERT · 消融', v: 0.6968, kind: 'ablation' },
 ]
 const KIND_COLOR = { ours: '#2563eb', baseline: '#64748b', ablation: '#cbd5e1' }
 
@@ -76,20 +77,20 @@ export default function ModelInfo() {
             <tr><td>版本</td><td>{info.version}</td></tr>
             <tr>
               <td>实体级 F1</td>
-              <td>{info.f1 > 0 ? `${(info.f1 * 100).toFixed(1)}%` : '未微调（训练完成后自动展示）'}</td>
+              <td>{info.f1 > 0 ? `${(info.f1 * 100).toFixed(1)}%` : '未微调 · 训练完成后自动展示'}</td>
             </tr>
             <tr><td>训练样本数</td><td>{info.train_samples || '—'}</td></tr>
             <tr><td>更新时间</td><td>{info.updated_at || '—'}</td></tr>
           </tbody>
         </table>
         <p className="muted" style={{ marginBottom: 0 }}>
-          说明：实体抽取 = 微调 BERT + 规则锚定兜底（显式字段行强锚定，来源标注 bert/rule）；
-          语义匹配 = DAPT 领域预训练编码 + 关键词重排（自适应 α 默认开启，词面证据稀薄时自动退向纯语义）。
+          说明：实体抽取 = 微调 BERT + 规则锚定兜底——显式字段行强锚定，来源标注 bert/rule；
+          语义匹配 = DAPT 领域预训练编码 + 关键词重排；自适应 α 默认开启，词面证据稀薄时自动退向纯语义。
         </p>
       </div>
 
       <div className="card">
-        <h3>评测成绩单（冻结口径 · NDCG@10）</h3>
+        <h3>评测成绩单 · 冻结口径 NDCG@10</h3>
         <div className="muted" style={{ marginBottom: 8 }}>
           主考卷：金标准 8142 对 / 46 查询 / 1062 简历 / 55 JD；蓝色为本文方法，深灰为外部对照，浅灰为消融
         </div>
@@ -97,9 +98,9 @@ export default function ModelInfo() {
           <Chart option={buildEvalOption()} height={300} />
         </Suspense>
         <p className="muted" style={{ marginBottom: 0 }}>
-          * 转导口径（角色标签与考卷同源，消融展示）；留出法 0.9929（背题 &lt;1pp，泛化已实证）。
-          两份加试考卷：正文避词卷 bert_pair 0.9799 首超 TF-IDF 0.9633；半规范排版卷 DAPT 0.9807
-          （伤系统的是内容缺失而非排版花哨）。数字一律以 docs/eval/ 下 JSON 报告为准。
+          * 转导口径：角色标签与考卷同源，仅作消融展示；留出法 0.9929，背题 &lt;1pp，泛化已实证。
+          两份加试考卷：正文避词卷 bert_pair 0.9799 首超 TF-IDF 0.9633；半规范排版卷 DAPT 0.9807——
+          伤系统的是内容缺失而非排版花哨。数字一律以 docs/eval/ 下 JSON 报告为准。
         </p>
       </div>
     </>
