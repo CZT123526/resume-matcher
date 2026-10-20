@@ -5,7 +5,7 @@ import {
 } from '../api'
 
 const STATUS_TEXT = { pending: '排队中', processing: '解析中', done: '已完成', failed: '失败' }
-const PAGE_SIZE = 25  // 列表分页：一页 25 份，页面不至于拉太长（用户定）
+const PAGE_SIZE = 20  // 列表分页：一页 20 份，页面不至于拉太长（用户定）
 const FIELD_TEXT = {
   name: '姓名', degree: '学历', school: '院校', skill: '技能',
   years: '年限', company: '公司', title: '职位',
