@@ -74,10 +74,10 @@ export default function Resumes() {
           await uploadResume(files[i])
           okCount++
         } catch (e) {
-          failed.push(`${files[i].name}（${e.message}）`)
+          failed.push(`${files[i].name}，${e.message}`)
         }
       }
-      setMsg(`已受理 ${okCount}/${files.length} 份，后台解析中（最多 2 路并行）`
+      setMsg(`已受理 ${okCount}/${files.length} 份，后台解析中，最多 2 路并行`
         + (failed.length ? `；失败：${failed.join('、')}` : ''))
       await refresh()
       setTimeout(refresh, 3000)
@@ -207,7 +207,7 @@ export default function Resumes() {
       <div className="card">
         <h3>{searchInfo
           ? `搜索「${searchInfo.q}」· 命中 ${searchInfo.total} 份`
-          : `简历列表（${items.length} 份）`}</h3>
+          : `简历列表 · 共 ${items.length} 份`}</h3>
         <div className="row" style={{ marginBottom: 8 }}>
           <input style={{ width: 260 }} placeholder="全文搜索：技能/公司/学校/任意原文片段"
             value={searchQ} onChange={(e) => setSearchQ(e.target.value)}
@@ -239,7 +239,7 @@ export default function Resumes() {
                 简历详情 · {detail.file_name}{' '}
                 <span className={`badge ${detail.parse_status}`}>{STATUS_TEXT[detail.parse_status]}</span>
               </h3>
-              <button className="modal-close" title="关闭（Esc）" onClick={closeModal}>×</button>
+              <button className="modal-close" title="关闭 · Esc" onClick={closeModal}>×</button>
             </div>
             <div className="modal-body">
             <div className="row" style={{ marginBottom: 10 }}>
@@ -252,8 +252,8 @@ export default function Resumes() {
             </div>
             {recs && (
               <div style={{ marginBottom: 12 }}>
-                <div className="field-label">推荐岗位 Top-3（校准融合分 = α·语义百分位 + (1−α)·词面命中率，T39）</div>
-                {recs.loading && <span className="muted">计算中…（首次需构建岗位向量）</span>}
+                <div className="field-label">推荐岗位 Top-3 · 校准融合分：α 加权语义百分位，其余权重给词面命中率</div>
+                {recs.loading && <span className="muted">计算中，首次需先构建岗位向量…</span>}
                 {recs.error && <span className="error-text">推荐失败：{recs.error}</span>}
                 {recs.items?.map((it, i) => (
                   <div key={it.jd_id} className="rec-item">
@@ -265,7 +265,7 @@ export default function Resumes() {
                     <div className="rec-meta">
                       语义百分位 {it.semantic_percentile} · 词面命中 {it.keyword_hit}/{it.n_keywords} 词
                     </div>
-                    <div className="muted" style={{ fontSize: 12 }}>{it.evidence.join('；') || '（无证据项）'}</div>
+                    <div className="muted" style={{ fontSize: 12 }}>{it.evidence.join('；') || '暂无证据项'}</div>
                   </div>
                 ))}
               </div>
@@ -277,16 +277,16 @@ export default function Resumes() {
               <div className="warn-text">解析质量提示：正文 {q.text_chars} 字、实体 {q.entity_count} 条
                 {q.like_resume ? '' : '，且内容不像简历'}——可能是扫描件/图片型文件，建议重新解析或换文件</div>
             )}
-            <div className="field-label">抽取实体（来源：{detail.entities?.[0]?.source || '—'}）</div>
+            <div className="field-label">抽取实体 · 来源 {detail.entities?.[0]?.source || '—'}</div>
             <div>
               {detail.entities?.length
                 ? detail.entities.map((e, i) => (
                   <span key={i} className="chip">{FIELD_TEXT[e.field_key] || e.field_key}：{e.field_value}</span>
                 ))
-                : <span className="muted">（暂无实体）</span>}
+                : <span className="muted">暂无实体</span>}
             </div>
-            <div className="field-label">简历原文（全文 {detail.quality?.text_chars ?? (detail.raw_text || '').length} 字，弹窗内可滚动）</div>
-            <div className="muted" style={{ whiteSpace: 'pre-wrap' }}>{detail.raw_text || '（无）'}</div>
+            <div className="field-label">简历原文 · 全文 {detail.quality?.text_chars ?? (detail.raw_text || '').length} 字，弹窗内可滚动</div>
+            <div className="muted" style={{ whiteSpace: 'pre-wrap' }}>{detail.raw_text || '无'}</div>
             </div>
           </div>
         </div>
@@ -298,7 +298,7 @@ export default function Resumes() {
             <div className="modal-head">
               <h3>解析数据 · {data.file_name}</h3>
               <button className="btn ghost" onClick={() => setData(null)}>返回详情</button>
-              <button className="modal-close" title="关闭（Esc）" onClick={closeModal}>×</button>
+              <button className="modal-close" title="关闭 · Esc" onClick={closeModal}>×</button>
             </div>
             <div className="modal-body">
             <div className="row">
@@ -309,19 +309,19 @@ export default function Resumes() {
               <span className="chip">向量 {data.matching.vector_dim} 维</span>
               <span className="chip">模长 {data.matching.vector_norm}</span>
             </div>
-            <div className="field-label">匹配输入（structured_text，语义编码真正的对象）</div>
+            <div className="field-label">匹配输入 · structured_text，语义编码真正的对象</div>
             <div className="mono-text">{data.matching.structured_text}</div>
-            <div className="field-label">向量预览（前 8 维 / 共 {data.matching.vector_dim} 维）</div>
+            <div className="field-label">向量预览 · 前 8 维，共 {data.matching.vector_dim} 维</div>
             <div className="mono-text">[{data.matching.vector_preview.join(', ')}]</div>
-            <div className="field-label">实体明细（含来源）</div>
+            <div className="field-label">实体明细 · 每条标注来源</div>
             {data.entities.length
               ? data.entities.map((e, i) => (
                 <span key={i} className={`chip ${e.source === 'bert' ? 'ok' : 'unknown'}`}>
                   {FIELD_TEXT[e.field_key] || e.field_key}：{e.field_value} · {e.source}
                 </span>
               ))
-              : <span className="muted">（暂无实体）</span>}
-            <div className="field-label">解析全文（{data.stats.text_chars} 字）</div>
+              : <span className="muted">暂无实体</span>}
+            <div className="field-label">解析全文 · 共 {data.stats.text_chars} 字</div>
             <details>
               <summary className="muted" style={{ cursor: 'pointer' }}>展开/收起全文</summary>
               <div className="muted" style={{ whiteSpace: 'pre-wrap' }}>{data.raw_text}</div>

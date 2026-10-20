@@ -265,6 +265,10 @@ tr.clickable:hover { background: var(--primary-softer); }
 @keyframes stripes { from { background-position: 0 0; } to { background-position: 23px 0; } }
 
 /* ---------- 12. 弹窗 ---------- */
+/* 弹窗打开时锁住背景滚动：body:has 命中任意弹窗即生效（含未来其他页的弹窗）；
+   scrollbar-gutter 常驻预留滚动条位，锁定瞬间背景不左右跳（用户要求：开卡片时主页面不动） */
+html { scrollbar-gutter: stable; }
+body:has(.modal-overlay) { overflow: hidden; }
 .modal-overlay {
   position: fixed; inset: 0; background: rgba(15, 23, 42, 0.45);
   backdrop-filter: blur(2px);
