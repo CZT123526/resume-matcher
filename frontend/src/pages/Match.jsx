@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
-import { listJds, createMatchTask, getMatchTask, getMatchResults, getMatchScoreDistribution, resumeFileUrl } from '../api'
+import { listJds, createMatchTask, getMatchTask, getMatchResults, getMatchScoreDistribution } from '../api'
+import ResumeDetailModal from '../components/ResumeDetailModal'
 
 // 图表懒加载（T40）：echarts 只在出结果后按需拉取，主包保持轻量
 const Chart = lazy(() => import('../components/Chart'))
@@ -35,10 +36,22 @@ function binScores(scores, topN) {
 
 function buildDistOption(scores, topN) {
   const { labels, inTop, rest } = binScores(scores, topN)
+  const totals = inTop.map((v, i) => v + rest[i])
+  const maxTotal = Math.max(...totals)
   return {
     grid: { left: 44, right: 12, top: 34, bottom: 26 },
-    tooltip: { trigger: 'axis' },
-    legend: { top: 2, right: 4, itemWidth: 12, itemHeight: 8, textStyle: { color: '#6b7280', fontSize: 12 } },
+    tooltip: {
+      trigger: 'axis',
+      // 垫底层只是热区，不进提示框
+      formatter: (ps) => ps.filter((p) => p.seriesName !== '_hit')
+        .map((p, i) => (i === 0 ? `${p.axisValueLabel}<br/>` : '') + `${p.marker}${p.seriesName}：${p.value}`)
+        .join('<br/>'),
+    },
+    legend: {
+      top: 2, right: 4, itemWidth: 12, itemHeight: 8,
+      textStyle: { color: '#6b7280', fontSize: 12 },
+      data: [`Top-${topN} 候选`, '其他候选人'],
+    },
     xAxis: {
       type: 'category', data: labels,
       axisTick: { show: false },
@@ -53,12 +66,18 @@ function buildDistOption(scores, topN) {
     },
     series: [
       {
-        name: `Top-${topN} 候选`, type: 'bar', stack: 'dist', data: inTop, cursor: 'pointer',
-        itemStyle: { color: '#d97706', borderRadius: [3, 3, 0, 0] }, barMaxWidth: 24,
+        // 透明垫底层（T44）：占满整列高度，柱子少/矮时整根柱位都是点击热区
+        name: '_hit', type: 'bar', barGap: '-100%', barMaxWidth: 56, z: 1, cursor: 'pointer',
+        itemStyle: { color: 'rgba(147,197,253,0.10)' }, emphasis: { disabled: true },
+        data: totals.map(() => maxTotal),
       },
       {
-        name: '其他候选人', type: 'bar', stack: 'dist', data: rest, cursor: 'pointer',
-        itemStyle: { color: '#93c5fd', borderRadius: [3, 3, 0, 0] }, barMaxWidth: 24,
+        name: `Top-${topN} 候选`, type: 'bar', stack: 'dist', data: inTop, cursor: 'pointer', z: 2,
+        itemStyle: { color: '#d97706', borderRadius: [3, 3, 0, 0] }, barMaxWidth: 56,
+      },
+      {
+        name: '其他候选人', type: 'bar', stack: 'dist', data: rest, cursor: 'pointer', z: 2,
+        itemStyle: { color: '#93c5fd', borderRadius: [3, 3, 0, 0] }, barMaxWidth: 56,
       },
     ],
   }
@@ -72,6 +91,7 @@ export default function Match() {
   const [results, setResults] = useState(null)
   const [dist, setDist] = useState(null)      // 全量分数分布（API-18，T40）
   const [binSel, setBinSel] = useState(null)  // 点选的分布柱：{label, count, list}，null=展示默认 Top-K
+  const [previewId, setPreviewId] = useState(null)  // 简历预览弹窗（与简历页共用组件）
   const [msg, setMsg] = useState('')
   const [busy, setBusy] = useState(false)
   const timerRef = useRef(null)
@@ -186,21 +206,22 @@ export default function Match() {
             <button className="btn ghost" onClick={() => setBinSel(null)}>
               返回 Top-{results.items.length} 结果
             </button>
-            <span className="muted">该融合分区间内的全部候选人，按分数降序；点击「打开」查看简历原件</span>
+            <span className="muted">该融合分区间内的全部候选人，按分数降序 · 点击行或「预览」查看简历详情，详情内可看原件</span>
           </div>
           <table>
             <thead>
-              <tr><th>#</th><th>姓名</th><th>简历</th><th>融合分</th><th>原件</th></tr>
+              <tr><th>#</th><th>姓名</th><th>简历</th><th>融合分</th><th>操作</th></tr>
             </thead>
             <tbody>
               {binSel.list.map((x, i) => (
-                <tr key={x.resume_id}>
+                <tr key={x.resume_id} className="clickable" onClick={() => setPreviewId(x.resume_id)}>
                   <td>{i + 1}</td>
                   <td>{x.name}</td>
                   <td className="muted">简历 {x.resume_id}</td>
                   <td>{x.score}</td>
                   <td>
-                    <a className="file-link" href={resumeFileUrl(x.resume_id)} target="_blank" rel="noreferrer">打开</a>
+                    <button className="btn ghost"
+                      onClick={(e) => { e.stopPropagation(); setPreviewId(x.resume_id) }}>预览</button>
                   </td>
                 </tr>
               ))}
@@ -229,7 +250,8 @@ export default function Match() {
                     <div className={`rank-num ${item.rank <= 3 ? `top${item.rank}` : ''}`}>{item.rank}</div>
                     <div className="candidate">
                       <div className="name">{item.candidate_name}</div>
-                      <div className="meta">简历 {item.resume_id}</div>
+                      <div className="meta file-link" title="预览简历详情"
+                        onClick={() => setPreviewId(item.resume_id)}>简历 {item.resume_id}</div>
                       <div style={{ marginTop: 8 }}>
                         {item.evidence.map((e, i) => (
                           <span key={i} className={`chip ${chipKind(e)}`}>{e}</span>
@@ -255,6 +277,10 @@ export default function Match() {
             </>
           )}
         </div>
+      )}
+
+      {previewId != null && (
+        <ResumeDetailModal resumeId={previewId} onClose={() => setPreviewId(null)} />
       )}
     </div>
   )
