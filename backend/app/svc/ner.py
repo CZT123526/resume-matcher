@@ -99,6 +99,11 @@ def extract_entities_bert(text: str) -> list[dict[str, str]]:
         except Exception as exc:
             logger.warning("BERT 抽取分句失败，跳过该句: %s", exc)
 
+    # 出场先过两道护栏，再走规则兜底——护栏丢空的字段规则还能补（T45）：
+    # 业务域增训实测（乔鹏飞_翻译）模型仍会产出跨词粘连技能与两字公司残渣，
+    # 这两类是字符级打标的固有噪声，靠运行时校验兜住（宁缺勿错，词典是技能的运行时契约）
+    entities = _drop_fragments(entities)
+    entities = _drop_untrusted_skills(entities)
     return _merge_rule_fallback(entities, text)
 
 
@@ -125,19 +130,39 @@ def _drop_fragments(entities: list[dict[str, str]]) -> list[dict[str, str]]:
     （"程师"⊂"开发工程师"、"里云"⊂"阿里云ACP"、单字"专/委/级"）——
     短值是长值的残渣，页面上就是明显的坏词条，按"宁缺勿错"整条丢弃。
     只作用于 title/company/school 三个多值文本字段；skill 不参与
-    （"sql" 确实是 "mysql" 的子串但两者是不同技能，不能互吞）。"""
+    （"sql" 确实是 "mysql" 的子串但两者是不同技能，不能互吞）。
+    T45 复活：本过滤曾写而未调（重构遗失），业务域增训后两字公司残渣
+    （"天津"⊂"天津理工大学"被截）依旧高发，company 两字以下一律按残渣处理。"""
     by_field: dict[str, list[str]] = {}
     for e in entities:
         by_field.setdefault(e["field_key"], []).append(e["field_value"])
 
     def is_fragment(field: str, value: str) -> bool:
         vals = by_field.get(field, [])
+        if field == "company" and len(value) <= 2:
+            return True  # 两字以下"公司"必是截断残渣
         return len(value) < 2 or any(value != v and value in v for v in vals)
 
     return [
         e for e in entities
         if e["field_key"] not in {"title", "company", "school"}
         or not is_fragment(e["field_key"], e["field_value"])
+    ]
+
+
+def _drop_untrusted_skills(entities: list[dict[str, str]]) -> list[dict[str, str]]:
+    """词典外 BERT 技能值丢弃（T45）：技能的运行时契约是 SKILL_DICT
+    （词面分与 JD 侧共用），模型自由标出的值不可信——实测会产出
+    跨词粘连长串（"tradosmemoqxbench"）。丢空后由规则词典兜底补齐，
+    展示与匹配口径反而一致。"""
+    from app.svc.ner_rules import SKILL_DICT
+
+    dict_values = {k.lower().replace(" ", "") for k in SKILL_DICT}
+    return [
+        e for e in entities
+        if e["field_key"] != "skill"
+        or e["source"] == "rule"
+        or e["field_value"].lower().replace(" ", "") in dict_values
     ]
 
 

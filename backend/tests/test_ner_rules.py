@@ -184,6 +184,7 @@ def test_title_company_school_fragments_dropped():
         {"field_key": "title", "field_value": "产品经理", "source": "bert"},  # 无包含关系 → 留
         {"field_key": "company", "field_value": "阿里云ACP", "source": "bert"},
         {"field_key": "company", "field_value": "里云", "source": "bert"},    # 子串残渣 → 丢
+        {"field_key": "company", "field_value": "天津", "source": "bert"},    # 两字截断残渣（T45）→ 丢
         {"field_key": "skill", "field_value": "mysql", "source": "rule"},
         {"field_key": "skill", "field_value": "sql", "source": "rule"},       # 技能互不吞 → 都留
     ]
@@ -194,6 +195,36 @@ def test_title_company_school_fragments_dropped():
     assert titles == ["开发工程师", "产品经理"]
     assert comps == ["阿里云ACP"]
     assert skills == {"mysql", "sql"}
+
+
+def test_bert_garbage_skills_and_company_fragments_filtered(monkeypatch):
+    """回归（T45，乔鹏飞_翻译 实况）：BERT 粘连技能与两字公司残渣被护栏拦下，
+    丢空字段由规则词典兜底补齐——护栏先过、兜底后补，顺序不能反"""
+    from app.svc import ner
+
+    def fake_pipe(chunk):
+        out = []
+        for line in chunk.splitlines():
+            if "职业技能" in line:
+                out.append({"entity_group": "skill", "word": "Trados memoQ Xbench"})  # 粘连长串
+            if "语言服务" in line:
+                out.append({"entity_group": "company", "word": "深圳恒信语言服务有限公司"})
+            if "理工" in line:
+                out.append({"entity_group": "company", "word": "天津"})   # 校名截断成公司
+                out.append({"entity_group": "school", "word": "理"})      # 单字校名残渣
+        return out
+
+    monkeypatch.setattr(ner, "_get_bert_pipeline", lambda: fake_pipe)
+    text = ("姓名：乔鹏飞\n职业技能：Trados memoQ Xbench（术语检查）\n"
+            "天津理工大学\n深圳恒信语言服务有限公司 翻译\n")
+    ents = ner.extract_entities_bert(text)
+    vals = {(e["field_key"], e["field_value"]) for e in ents}
+
+    assert ("company", "天津") not in vals and ("school", "理") not in vals
+    assert ("company", "深圳恒信语言服务有限公司") in vals
+    assert ("school", "天津理工大学") in vals                      # 规则兜底补回
+    skills = {v for k, v in vals if k == "skill"}
+    assert skills == {"trados", "memoq", "xbench"}                 # 词典兜底，粘连串消失
 
 
 def test_bert_title_not_from_project_sections(monkeypatch):
