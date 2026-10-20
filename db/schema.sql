@@ -59,6 +59,7 @@ CREATE TABLE IF NOT EXISTS match_results (
     rank          INTEGER NOT NULL,                  -- 排名（1=最匹配）
     score         REAL    NOT NULL,                  -- 归一化语义相似度 0~1（4位小数），见 docs/算法设计.md §3
     evidence_json TEXT    NOT NULL DEFAULT '[]',     -- 证据链JSON数组，文案格式见 docs/算法设计.md §4
+    detail_json   TEXT,                              -- 分数构成明细JSON（T42：semantic/lexical/alpha），旧行为 NULL
     created_at    TEXT    NOT NULL DEFAULT (datetime('now','localtime')) -- 生成时间
 );
 CREATE INDEX IF NOT EXISTS idx_results_task ON match_results(task_id, rank); -- 按任务取排名结果

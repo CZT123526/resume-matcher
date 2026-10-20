@@ -88,10 +88,11 @@ def run_match_pipeline(task_id: int, jd_id: int, top_k: int) -> None:
                         coverage_from_scores(lex_scores.values()), alpha, settings.MATCH_ALPHA)
         # T40：Top-K 与全量分布同源——hybrid_scores 一次融合，排名就地截断，
         # 全量分数降序存档 match_score_dist（分布图接口读它，不二次计算）
-        final, order = hybrid_scores(jd_vec, lex_scores, alpha=alpha)
+        final, bert_arr, lex_arr, order = hybrid_scores(jd_vec, lex_scores, alpha=alpha)
         top = np.argsort(-final)[: max(int(top_k), 0)]
         ranked = [
-            {"resume_id": int(order[i]), "score": round(float(final[i]), 4)}
+            {"resume_id": int(order[i]), "score": round(float(final[i]), 4),
+             "semantic": round(float(bert_arr[i]), 4), "lexical": round(float(lex_arr[i]), 4)}
             for i in top
         ]
         dist_scores = sorted((round(float(s), 4) for s in final), reverse=True)
@@ -111,12 +112,14 @@ def run_match_pipeline(task_id: int, jd_id: int, top_k: int) -> None:
             ).fetchall()
             entities = [dict(r) for r in ent_rows]
             evidence = compute_evidence(req, entities)
+            detail = {"semantic": item["semantic"], "lexical": item["lexical"],
+                      "alpha": round(float(alpha), 4)}
             rows.append((task_id, item["resume_id"], rank, item["score"],
-                         json.dumps(evidence, ensure_ascii=False)))
+                         json.dumps(evidence, ensure_ascii=False), json.dumps(detail)))
         conn.execute("DELETE FROM match_results WHERE task_id=?", (task_id,))
         conn.executemany(
-            "INSERT INTO match_results(task_id, resume_id, rank, score, evidence_json) "
-            "VALUES(?,?,?,?,?)",
+            "INSERT INTO match_results(task_id, resume_id, rank, score, evidence_json, detail_json) "
+            "VALUES(?,?,?,?,?,?)",
             rows,
         )
         conn.execute(

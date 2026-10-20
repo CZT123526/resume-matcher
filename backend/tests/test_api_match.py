@@ -84,6 +84,12 @@ def test_match_full_flow():
     scores = [i["score"] for i in items]
     assert scores == sorted(scores, reverse=True)
 
+    # T42 分数构成明细：semantic/lexical/alpha 齐备，融合回算与 score 一致
+    d0 = items[0]["score_detail"]
+    assert d0 and 0.0 <= d0["semantic"] <= 1.0 and 0.0 <= d0["lexical"] <= 1.0
+    fused = d0["alpha"] * d0["semantic"] + (1 - d0["alpha"]) * d0["lexical"]
+    assert abs(items[0]["score"] - fused) < 1e-2
+
     # T40 分布契约：全量分数降序，与 Top-K 第一名同源同值
     dist = client.get(f"/api/match-tasks/{task_id}/score_distribution")
     assert dist.status_code == 200

@@ -158,28 +158,49 @@ export default function Match() {
 
       {results && (
         <div className="card">
-          <h3>匹配结果 · {results.jd_title}（共 {results.items.length} 人）</h3>
-          {results.items.length === 0
-            ? <div className="empty">没有候选人可匹配，先去上传简历</div>
-            : results.items.map((item) => (
-              <div key={item.rank} className="rank-card">
-                <div className={`rank-num ${item.rank <= 3 ? `top${item.rank}` : ''}`}>{item.rank}</div>
-                <div className="candidate">
-                  <div className="name">{item.candidate_name}</div>
-                  <div className="meta">简历 {item.resume_id}</div>
-                  <div style={{ marginTop: 8 }}>
-                    {item.evidence.map((e, i) => (
-                      <span key={i} className={`chip ${chipKind(e)}`}>{e}</span>
-                    ))}
-                  </div>
-                </div>
-                <div className="score-wrap">
-                  <div className="score-num">{Math.round(item.score * 100)}</div>
-                  <div className="muted">匹配度 / 100</div>
-                  <div className="bar"><div style={{ width: `${Math.round(item.score * 100)}%` }} /></div>
-                </div>
+          <h3>匹配结果 · {results.jd_title} · 共 {results.items.length} 人</h3>
+          {results.items.length === 0 ? (
+            <div className="empty">没有候选人可匹配，先去上传简历</div>
+          ) : (
+            <>
+              <div className="muted" style={{ marginBottom: 8 }}>
+                分数为语义与词面的加权综合，同领域文本普遍偏高，对比排名与超过比例更直观
               </div>
-            ))}
+              {results.items.map((item) => {
+                // 超过比例：用同一任务的全量分数分布（API-18）算相对位置，旧任务无存档则不显示
+                const beat = dist?.scores?.length
+                  ? Math.round(100 * dist.scores.filter((s) => s < item.score).length / dist.scores.length)
+                  : null
+                return (
+                  <div key={item.rank} className="rank-card">
+                    <div className={`rank-num ${item.rank <= 3 ? `top${item.rank}` : ''}`}>{item.rank}</div>
+                    <div className="candidate">
+                      <div className="name">{item.candidate_name}</div>
+                      <div className="meta">简历 {item.resume_id}</div>
+                      <div style={{ marginTop: 8 }}>
+                        {item.evidence.map((e, i) => (
+                          <span key={i} className={`chip ${chipKind(e)}`}>{e}</span>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="score-wrap">
+                      <div className="score-num">{Math.round(item.score * 100)}</div>
+                      <div className="muted">匹配度 / 100</div>
+                      <div className="bar"><div style={{ width: `${Math.round(item.score * 100)}%` }} /></div>
+                      {item.score_detail && (
+                        <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>
+                          语义 {item.score_detail.semantic} · 词面 {item.score_detail.lexical} · 权重 α {item.score_detail.alpha}
+                        </div>
+                      )}
+                      {beat != null && (
+                        <div className="muted" style={{ fontSize: 12 }}>超过全库 {beat}% 候选人</div>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </>
+          )}
         </div>
       )}
     </div>

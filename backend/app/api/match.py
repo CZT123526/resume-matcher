@@ -69,7 +69,7 @@ def match_task_results(task_id: int):
 
         jd = conn.execute("SELECT title FROM jds WHERE id=?", (task["jd_id"],)).fetchone()
         result_rows = conn.execute(
-            "SELECT resume_id, rank, score, evidence_json FROM match_results "
+            "SELECT resume_id, rank, score, evidence_json, detail_json FROM match_results "
             "WHERE task_id=? ORDER BY rank",
             (task_id,),
         ).fetchall()
@@ -90,6 +90,7 @@ def match_task_results(task_id: int):
             "resume_id": r["resume_id"],
             "candidate_name": names.get(r["resume_id"], f"候选人{r['resume_id']}"),
             "score": r["score"],
+            "score_detail": json.loads(r["detail_json"]) if r["detail_json"] else None,
             "evidence": json.loads(r["evidence_json"] or "[]"),
         }
         for r in result_rows
