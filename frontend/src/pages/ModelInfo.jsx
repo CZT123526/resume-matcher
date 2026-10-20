@@ -4,7 +4,7 @@ import { getModelInfo } from '../api'
 // 图表懒加载（T40）：echarts 只在本页按需拉取，主包保持轻量
 const Chart = lazy(() => import('../components/Chart'))
 
-// 冻结评测口径（v4 主考卷 8142 对/46 查询，NDCG@10；T39 自适应 α 为三池验证后默认值）。
+// 冻结评测口径（v4 主测试集 8142 对/46 查询，NDCG@10；T39 自适应 α 为三池验证后默认值）。
 // 数据来源：docs/eval/eval_report.json、adaptive_alpha_report.json、semispec_report.json、
 // stress_report.json（2026-10-19 冻结）。前端只做展示，评测一律以 docs/eval/ 产物为准。
 // 展示纪律：界面文案不写括号注解——归类信息用「·」分隔进条形图标签，细节进脚注分句（用户要求）
@@ -92,14 +92,14 @@ export default function ModelInfo() {
       <div className="card">
         <h3>评测成绩单 · 冻结口径 NDCG@10</h3>
         <div className="muted" style={{ marginBottom: 8 }}>
-          主考卷：金标准 8142 对 / 46 查询 / 1062 简历 / 55 JD；蓝色为本文方法，深灰为外部对照，浅灰为消融
+          主测试集：金标准 8142 对 / 46 查询 / 1062 简历 / 55 JD；蓝色为本文方法，深灰为外部对照，浅灰为消融
         </div>
         <Suspense fallback={<div className="skeleton" style={{ height: 300 }} />}>
           <Chart option={buildEvalOption()} height={300} />
         </Suspense>
         <p className="muted" style={{ marginBottom: 0 }}>
-          * 转导口径：角色标签与考卷同源，仅作消融展示；留出法 0.9929，背题 &lt;1pp，泛化已实证。
-          两份加试考卷：正文避词卷 bert_pair 0.9799 首超 TF-IDF 0.9633；半规范排版卷 DAPT 0.9807——
+          * 转导口径：角色标签与测试集同源，仅作消融展示；留出法 0.9929，背题 &lt;1pp，泛化已实证。
+          两批加试简历：改写简历上 bert_pair 0.9799 首超 TF-IDF 0.9633；半规范简历上语义编码 DAPT 0.9807——
           伤系统的是内容缺失而非排版花哨。数字一律以 docs/eval/ 下 JSON 报告为准。
         </p>
       </div>
