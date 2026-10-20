@@ -155,6 +155,9 @@ tr:last-child td { border-bottom: none; }
 tr.clickable { cursor: pointer; transition: background 0.14s var(--ease); }
 tr.clickable:hover { background: var(--primary-softer); }
 
+/* 分页条 */
+.pager { display: flex; gap: 14px; align-items: center; justify-content: center; margin-top: 14px; }
+
 /* ---------- 8. 徽章与标签 ---------- */
 .badge {
   display: inline-flex; align-items: center; gap: 5px;

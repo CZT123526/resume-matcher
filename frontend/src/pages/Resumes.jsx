@@ -5,6 +5,7 @@ import {
 } from '../api'
 
 const STATUS_TEXT = { pending: '排队中', processing: '解析中', done: '已完成', failed: '失败' }
+const PAGE_SIZE = 50  // 列表分页：后端单页上限 500，前端取 50 条一页，防止长列表拖卡
 const FIELD_TEXT = {
   name: '姓名', degree: '学历', school: '院校', skill: '技能',
   years: '年限', company: '公司', title: '职位',
@@ -13,6 +14,7 @@ const FIELD_TEXT = {
 export default function Resumes() {
   const [items, setItems] = useState([])
   const [total, setTotal] = useState(0)
+  const [page, setPage] = useState(1)
   const [detail, setDetail] = useState(null)
   const [data, setData] = useState(null)        // 解析数据视图（API-16）
   const [recs, setRecs] = useState(null)        // 反向推荐（API-17，T39）
@@ -25,12 +27,18 @@ export default function Resumes() {
   const [searchInfo, setSearchInfo] = useState(null) // {q, total}
   const fileRef = useRef(null)
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (nextPage = 1) => {
     setRefreshing(true)
     try {
-      const d = await listResumes()
+      let d = await listResumes(nextPage, PAGE_SIZE)
+      // 翻到超出总页数的空页（如末页最后一条刚被删）时回退一页
+      if (!(d.items || []).length && nextPage > 1) {
+        d = await listResumes(nextPage - 1, PAGE_SIZE)
+        nextPage -= 1
+      }
       setItems(d.items || [])
       setTotal(d.total || 0)
+      setPage(nextPage)
       setSearchInfo(null)
       setSearchQ('')
       setRefreshedAt(new Date().toLocaleTimeString())
@@ -42,7 +50,7 @@ export default function Resumes() {
     }
   }, [])
 
-  useEffect(() => { refresh() }, [refresh])
+  useEffect(() => { refresh(1) }, [refresh])
 
   const onSearch = async () => {
     const q = searchQ.trim()
@@ -80,7 +88,7 @@ export default function Resumes() {
       setMsg(`已受理 ${okCount}/${files.length} 份，后台解析中，最多 2 路并行`
         + (failed.length ? `；失败：${failed.join('、')}` : ''))
       await refresh()
-      setTimeout(refresh, 3000)
+      setTimeout(() => refresh(), 3000)
     } finally {
       setBusy(false)
       if (fileRef.current) fileRef.current.value = ''
@@ -139,7 +147,7 @@ export default function Resumes() {
       await deleteResume(id)
       setDetail(null)
       setData(null)
-      await refresh()
+      await refresh(page)
     } catch (e) {
       setMsg(`删除失败：${e.message}`)
     }
@@ -155,6 +163,7 @@ export default function Resumes() {
 
   const q = detail?.quality || {}
   const lowQuality = detail?.parse_status === 'done' && (!q.like_resume || q.entity_count === 0)
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
   // T32 起评测种子语料（resume_ 前缀）已整体移出业务库，列表不再分组；
   // 搜索结果与全量列表共用同一张表。
@@ -196,7 +205,7 @@ export default function Resumes() {
             onClick={() => fileRef.current?.click()}>
             {busy ? '上传中…' : '选择文件上传'}
           </button>
-          <button className="btn ghost" disabled={refreshing} onClick={refresh}>
+          <button className="btn ghost" disabled={refreshing} onClick={() => refresh(page)}>
             {refreshing ? '刷新中…' : '刷新列表'}
           </button>
           {refreshedAt && <span className="muted">已刷新 {refreshedAt}</span>}
@@ -207,14 +216,14 @@ export default function Resumes() {
       <div className="card">
         <h3>{searchInfo
           ? `搜索「${searchInfo.q}」· 命中 ${searchInfo.total} 份`
-          : `简历列表 · 共 ${items.length} 份`}</h3>
+          : `简历列表 · 共 ${total} 份`}</h3>
         <div className="row" style={{ marginBottom: 8 }}>
           <input style={{ width: 260 }} placeholder="全文搜索：技能/公司/学校/任意原文片段"
             value={searchQ} onChange={(e) => setSearchQ(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && onSearch()} />
           <button className="btn ghost" disabled={refreshing} onClick={onSearch}>搜索</button>
           {searchInfo && (
-            <button className="btn ghost" onClick={refresh}>返回全部</button>
+            <button className="btn ghost" onClick={() => refresh(1)}>返回全部</button>
           )}
         </div>
         {!searchInfo && <div className="muted" style={{ marginBottom: 8 }}>点击文件名打开原件 · 点击行查看解析详情</div>}
@@ -228,6 +237,17 @@ export default function Resumes() {
           <div className="empty">{searchInfo ? '没有命中的简历，换个关键词试试' : '还没有简历，先上传一份试试'}</div>
         ) : (
           renderTable(items, !!searchInfo)
+        )}
+        {!searchInfo && totalPages > 1 && (
+          <div className="pager">
+            <button className="btn ghost" disabled={page <= 1 || refreshing} onClick={() => refresh(page - 1)}>
+              上一页
+            </button>
+            <span className="muted">第 {page} / {totalPages} 页</span>
+            <button className="btn ghost" disabled={page >= totalPages || refreshing} onClick={() => refresh(page + 1)}>
+              下一页
+            </button>
+          </div>
         )}
       </div>
 
