@@ -231,9 +231,9 @@ export default function Resumes() {
           )}
           {!searchInfo && (
             <select value={corpus} disabled={refreshing} onChange={(e) => setCorpus(e.target.value)}
-              title="按语料批次筛选列表；数字为各类份数">
-              <option value="all">全部语料{corpusCounts ? ` · ${corpusCounts.all}` : ''}</option>
-              <option value="business">正式语料{corpusCounts ? ` · ${corpusCounts.business}` : ''}</option>
+              title="按批次筛选简历，数字为各类份数">
+              <option value="all">全部简历{corpusCounts ? ` · ${corpusCounts.all}` : ''}</option>
+              <option value="business">正式简历{corpusCounts ? ` · ${corpusCounts.business}` : ''}</option>
               <option value="rewrite">改写考卷{corpusCounts ? ` · ${corpusCounts.rewrite}` : ''}</option>
               <option value="semispec">半规范考卷{corpusCounts ? ` · ${corpusCounts.semispec}` : ''}</option>
             </select>
