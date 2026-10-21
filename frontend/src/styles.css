@@ -197,10 +197,11 @@ tr.clickable:hover { background: var(--primary-softer); }
 .rank-num.top1 { color: #92400e; background: linear-gradient(135deg, #fef3c7, #fde68a); }
 .rank-num.top2 { color: #374151; background: linear-gradient(135deg, #f3f4f6, #e5e7eb); }
 .rank-num.top3 { color: #7c2d12; background: linear-gradient(135deg, #ffedd5, #fed7aa); }
-.candidate { flex: 1; }
+.candidate { flex: 1; min-width: 0; }
 .candidate .name { font-weight: 600; font-size: 15px; color: var(--text); }
 .candidate .meta { color: var(--muted); font-size: 13px; margin-top: 2px; }
-.score-wrap { min-width: 180px; }
+/* 定宽右列：分数块左边缘与进度条在所有卡片间严格对齐（明细行过长时在列内换行） */
+.score-wrap { width: 300px; flex-shrink: 0; }
 .score-num { font-size: 20px; font-weight: 700; color: var(--primary); }
 .bar {
   background: var(--gray-weak); border-radius: 999px; height: 8px; overflow: hidden; margin-top: 6px;
@@ -320,3 +321,12 @@ body:has(.modal-overlay) { overflow: hidden; }
   .rank-card { flex-direction: column; }
   .score-wrap { width: 100%; }
 }
+
+/* ---------- 14. 主页统计卡（T48） ---------- */
+.stat-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+.stat-card { margin-bottom: 18px; }
+.stat-num { font-size: 30px; font-weight: 700; line-height: 1.2; color: var(--text); }
+.stat-label { color: var(--text-2); font-size: 13px; font-weight: 500; margin-top: 2px; }
+.stat-sub { color: var(--muted); font-size: 12px; line-height: 1.6; margin-top: 8px; }
+@media (max-width: 960px) { .stat-row { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 520px) { .stat-row { grid-template-columns: 1fr; } }

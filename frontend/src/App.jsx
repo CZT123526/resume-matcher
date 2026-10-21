@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import Home from './pages/Home.jsx'
 import Resumes from './pages/Resumes.jsx'
 import Jds from './pages/Jds.jsx'
 import Match from './pages/Match.jsx'
@@ -6,6 +7,7 @@ import ModelInfo from './pages/ModelInfo.jsx'
 import './styles.css'
 
 const TABS = [
+  { key: 'home', label: '主页', comp: Home },
   { key: 'resumes', label: '简历库', comp: Resumes },
   { key: 'jds', label: '岗位 JD', comp: Jds },
   { key: 'match', label: '人才匹配', comp: Match },
@@ -13,8 +15,9 @@ const TABS = [
 ]
 
 // T40v2：左侧边栏布局（用户要求导航放左手边），标题配色转沉稳石墨蓝
+// T48：新增主页总览，作为默认页
 export default function App() {
-  const [tab, setTab] = useState('resumes')
+  const [tab, setTab] = useState('home')
   const Active = TABS.find((t) => t.key === tab).comp
 
   return (
