@@ -2,7 +2,7 @@
 
 缓存文件（db/ 下，.gitignore 排除）：
 - vectors.npy      归一化向量矩阵，行序与 resume_ids.json 一致
-- resume_ids.json  {"order": [resume_id...], "hashes": {id: md5(raw_text)}}
+- resume_ids.json  {"order": [resume_id...], "hashes": {id: md5(structured_text)}}
 - tfidf_state.npz  降级模式的词表+IDF（保证建库/查询同一特征空间）
 
 重建规则（算法设计 §3.3 + T41 增量）：简历的编码输入哈希与缓存不一致 → 只重编

@@ -145,12 +145,13 @@ def search_resumes(q: str = Query(..., min_length=1, max_length=100), limit: int
                 "WHERE resume_search MATCH ? ORDER BY rank LIMIT ?",
                 (safe, limit),
             ).fetchall()
-        else:  # 1-2 字符低于 trigram 下限，小库直接 LIKE
+        else:  # 1-2 字符低于 trigram 下限，小库直接 LIKE（% _ 转义为字面义，防通配假命中）
+            esc = keyword.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
             rows = conn.execute(
                 "SELECT r.id, r.file_name, r.parse_status, r.created_at, "
                 "substr(r.raw_text, max(1, instr(r.raw_text, ?) - 20), 80) AS snippet "
-                "FROM resumes r WHERE r.raw_text LIKE ? LIMIT ?",
-                (keyword, f"%{keyword}%", limit),
+                "FROM resumes r WHERE r.raw_text LIKE ? ESCAPE '\\' LIMIT ?",
+                (keyword, f"%{esc}%", limit),
             ).fetchall()
     finally:
         conn.close()
