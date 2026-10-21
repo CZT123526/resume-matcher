@@ -22,6 +22,7 @@ _CHAR_RE = re.compile(r"[一-龥a-z0-9]+")
 
 _bert_model = None
 _bert_tried = False
+_degrade_reason: str | None = None  # C9：BERT 首次加载失败的原因（降级不再静默）
 
 
 class _BertEncoder:
@@ -104,7 +105,7 @@ class _TfidfEncoder:
 
 def get_encoder() -> _BertEncoder | _TfidfEncoder:
     """进程内单例：优先 BERT；无 torch/模型或 FORCE_TFIDF=1 时降级 TF-IDF"""
-    global _bert_model, _bert_tried
+    global _bert_model, _bert_tried, _degrade_reason
     if os.getenv("FORCE_TFIDF") == "1":
         return _TfidfEncoder()  # fit 由向量缓存层负责
     if not _bert_tried:
@@ -113,8 +114,25 @@ def get_encoder() -> _BertEncoder | _TfidfEncoder:
             _bert_model = _BertEncoder()
             logger.info("语义编码使用 BERT（%s）", _BERT_MODEL)
         except Exception as exc:
+            _degrade_reason = str(exc)[:300]
             logger.warning("BERT 不可用，降级 TF-IDF 编码: %s", exc)
     return _bert_model if _bert_model is not None else _TfidfEncoder()
+
+
+def encoder_status() -> dict:
+    """当前语义编码器状态（C9：降级可见化，/api/model/info 消费）。
+
+    degraded=True 表示 BERT 加载失败后走了 TF-IDF——分数口径与文档默认不同，
+    界面必须能看出来；FORCE_TFIDF=1 是主动消融，不算降级。
+    """
+    if os.getenv("FORCE_TFIDF") == "1":
+        return {"kind": "tfidf", "degraded": False, "forced": True,
+                "reason": None, "model": _BERT_MODEL}
+    if _bert_model is not None:
+        return {"kind": "bert", "degraded": False, "forced": False,
+                "reason": None, "model": _BERT_MODEL}
+    return {"kind": "tfidf", "degraded": _bert_tried, "forced": False,
+            "reason": _degrade_reason, "model": _BERT_MODEL}
 
 
 def save_tfidf_state(encoder: _TfidfEncoder, state_file: Path) -> None:

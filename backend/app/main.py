@@ -20,22 +20,52 @@ from app.api import jds, match, reports, resumes, stats
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     """启动时自动建表（schema.sql 全 IF NOT EXISTS，幂等）；
-    并把上次服务中断遗留的进行中任务标记失败（BackgroundTasks 不跨重启）"""
+    并把上次服务中断遗留的进行中任务标记失败（BackgroundTasks 不跨重启）。
+
+    B2 挑刺修复：清扫只针对「属主进程已不在」的行（owner_pid 探活）——
+    两个后端进程共用一个库 / --reload 热重载时，不再误杀别的活进程正在跑的任务。
+    owner_pid 为空的行是加列前的历史遗留，属主无从考证，照旧清扫。
+    """
     init_db()
     backfill_search_index()  # 全文索引幂等回填（T29）
-    conn = None
-    from app.db import get_db
+    import os
 
+    from app.common.process import pid_alive
+    from app.db import get_db
+    from app.svc.embedding import get_encoder
+
+    # C9 补充：启动即预热编码器——BERT 是惰性加载，不预热的话首次匹配前
+    # /api/model/info 会显示 kind=tfidf 且 degraded=False，像在主动用 TF-IDF，
+    # 实际只是「还没试过」。预热后状态从监听第一刻起就真实（失败立即带 reason 降级）。
+    get_encoder()
+
+    me = os.getpid()
     conn = get_db()
     try:
-        conn.execute(
-            "UPDATE resumes SET parse_status='failed', parse_error='服务重启中断解析，请重新上传' "
-            "WHERE parse_status IN ('pending','processing')"
-        )
-        conn.execute(
-            "UPDATE match_tasks SET status='failed', error='服务重启中断任务', finished_at=datetime('now','localtime') "
-            "WHERE status IN ('pending','running')"
-        )
+        rows = conn.execute(
+            "SELECT id, owner_pid FROM resumes WHERE parse_status IN ('pending','processing')"
+        ).fetchall()
+        stale = [r["id"] for r in rows
+                 if r["owner_pid"] != me and not pid_alive(r["owner_pid"])]
+        if stale:
+            marks = ",".join("?" * len(stale))
+            conn.execute(
+                f"UPDATE resumes SET parse_status='failed', "
+                f"parse_error='服务重启中断解析，请重新上传' WHERE id IN ({marks})",
+                stale,
+            )
+        rows = conn.execute(
+            "SELECT id, owner_pid FROM match_tasks WHERE status IN ('pending','running')"
+        ).fetchall()
+        stale = [r["id"] for r in rows
+                 if r["owner_pid"] != me and not pid_alive(r["owner_pid"])]
+        if stale:
+            marks = ",".join("?" * len(stale))
+            conn.execute(
+                f"UPDATE match_tasks SET status='failed', error='服务重启中断任务', "
+                f"finished_at=datetime('now','localtime') WHERE id IN ({marks})",
+                stale,
+            )
         conn.commit()
     finally:
         conn.close()

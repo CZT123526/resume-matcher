@@ -13,7 +13,7 @@ JD 里的技能词/岗位内容词在简历匹配文本中是否出现——恰�
 """
 import re
 
-from app.svc.ner_rules import match_skills
+from app.svc.ner_rules import match_skills, _skill_present
 
 # 职位通用后缀/级别词：抽 JD 标题关键词时剔除（与金标准 build_gold 的
 # _GENERIC_TOKENS 同理念；独立维护，避免 app/ 反向依赖 tools/）
@@ -30,24 +30,14 @@ _TITLE_GENERIC = {"后端", "前端", "测试", "运维", "运营", "数据", "�
 # 词面切分：ASCII 词（java/c++/3d…）或连续中文段
 _RUN_RE = re.compile(r"[.#]?[a-z0-9][a-z0-9+#.]*|[一-鿿]+")
 
-# ASCII 关键词边界缓存（编译一次复用）
-_ASCII_PRESENT = {}
-
 
 def _present(keyword: str, text_lower: str) -> bool:
     """关键词是否出现在文本中：ASCII 词带边界，中文词子串（中文无词边界）。
 
-    边界两侧不得再接字母数字/+/#/点：java 不命中 javascript、
-    .net 不命中 asp.net、c 不命中 c++。
+    B1 挑刺修复：收敛到 ner_rules._skill_present 单一实现（含 T51 复数容错）——
+    此前这里另有一份无复数容错的分叉实现，两处口径已经不一致。
     """
-    if keyword.isascii():
-        pat = _ASCII_PRESENT.get(keyword)
-        if pat is None:
-            escaped = re.escape(keyword)
-            pat = re.compile(rf"(?<![a-z0-9+#.]){escaped}(?![a-z0-9+#.])")
-            _ASCII_PRESENT[keyword] = pat
-        return pat.search(text_lower) is not None
-    return keyword in text_lower
+    return _skill_present(keyword, text_lower)
 
 
 def _all_generic(run: str) -> bool:

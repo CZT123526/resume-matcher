@@ -42,6 +42,23 @@ def _parse_pdf(raw: bytes) -> str:
     return "\n".join(pages)
 
 
+def _walk_table(table, parts: list[str]) -> None:
+    """表格文本收集（C3 挑刺修复）：合并单元格只计一次、嵌套表格递归读出。
+
+    python-docx 对横向合并（gridspan）的格会在 row.cells 里重复返回同一文本，
+    原实现逐格追加 → 文本膨胀；嵌套表格（单元格里还有表）则整块丢失。
+    """
+    for row in table.rows:
+        prev = None
+        for cell in row.cells:
+            text = cell.text
+            if text.strip() and text != prev:  # 相邻重复 = 同一合并格，跳过
+                parts.append(text)
+            prev = text
+            for nested in cell.tables:  # 递归：嵌套表此前整块漏读
+                _walk_table(nested, parts)
+
+
 def _parse_docx(raw: bytes) -> str:
     try:
         import docx
@@ -51,10 +68,7 @@ def _parse_docx(raw: bytes) -> str:
         parts = [p.text for p in document.paragraphs if p.text.strip()]
         # 简历常用表格排版，表格单元格文本同样计入
         for table in document.tables:
-            for row in table.rows:
-                for cell in row.cells:
-                    if cell.text.strip():
-                        parts.append(cell.text)
+            _walk_table(table, parts)
         # 设计版简历的内容常整块放在文本框（txbxContent）里，普通段落读不到；
         # Word 兼容存储会把同一文本框写两遍（mc:Choice + mc:Fallback），按行去重
         seen: set[str] = set()

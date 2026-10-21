@@ -90,6 +90,32 @@ def test_evidence_years_unknown_omitted():
     assert "符合：经验 5年≥3年" in ev5
 
 
+def test_evidence_unknown_jd_degree_no_red_chip():
+    """C5 回归：JD 学历值不在枚举表（如将来的「不限」）→ 学历行整行不出现，
+    不再输出「不符合：学历 本科<不限」式荒谬红标"""
+    ev = compute_evidence({"skills": [], "degree": "不限", "min_years": None},
+                          [{"field_key": "degree", "field_value": "本科"}])
+    assert not any("学历" in e for e in ev)
+
+
+def test_evidence_years_takes_max_across_entities():
+    """C5 回归：多段经历取最大年限（最能代表资历），此前取第一个实体方向可能选错"""
+    ents = [
+        {"field_key": "years", "field_value": "1"},
+        {"field_key": "years", "field_value": "5"},
+    ]
+    ev = compute_evidence({"skills": [], "degree": None, "min_years": 3}, ents)
+    assert "符合：经验 5年≥3年" in ev
+
+
+def test_jd_year_range_not_tripped_by_calendar_years():
+    """C7 回归：「2023-25年」式年份区间此前被截成 23-25 → min_years=23；
+    加数字左边界后不再误命中，真区间 3-5 年不受影响"""
+    assert build_jd_requirements("岗位经验：2023-25年相关沉淀")["min_years"] is None
+    assert build_jd_requirements("岗位经验：2023-2025年相关沉淀")["min_years"] is None
+    assert build_jd_requirements("要求：3-5年经验")["min_years"] == 3
+
+
 def test_duty_label_masked_from_skills():
     """T35：行首职责标签（"1、数据分析：…"）是栏目名不是技能，不进 req_json"""
     req = build_jd_requirements(

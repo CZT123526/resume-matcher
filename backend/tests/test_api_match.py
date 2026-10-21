@@ -173,5 +173,29 @@ def test_model_info():
     r = client.get("/api/model/info")
     assert r.status_code == 200
     data = r.json()["data"]
-    assert set(data) == {"model_name", "version", "f1", "train_samples", "updated_at"}
+    assert set(data) == {"model_name", "version", "f1", "train_samples", "updated_at", "encoder"}
     assert 0.0 <= data["f1"] <= 1.0
+    # C9：编码器状态随契约返回（测试环境 FORCE_TFIDF=1 → 主动消融，不算降级）
+    enc = data["encoder"]
+    assert enc["kind"] == "tfidf" and enc["forced"] is True and enc["degraded"] is False
+
+
+def test_match_task_list_endpoint():
+    """A4 回归：历史任务列表——结果按 task_id 完整存档，界面此前无入口再打开"""
+    jid = client.post("/api/jds", json={"title": "列表接口岗位", "content": "要求：Python。"}).json()["data"]["jd_id"]
+    tid = client.post("/api/match-tasks", json={"jd_id": jid, "top_k": 3}).json()["data"]["task_id"]
+
+    r = client.get("/api/match-tasks", params={"page": 1, "page_size": 5})
+    assert r.status_code == 200
+    d = r.json()["data"]
+    assert d["total"] >= 1
+    mine = next(x for x in d["items"] if x["task_id"] == tid)
+    assert mine["jd_title"] == "列表接口岗位"
+    assert mine["status"] == "done"
+    assert mine["top_k"] == 3
+    assert mine["n_results"] >= 1
+    assert mine["created_at"]
+
+    r2 = client.get("/api/match-tasks", params={"status": "done"})
+    assert all(x["status"] == "done" for x in r2.json()["data"]["items"])
+    assert client.get("/api/match-tasks", params={"status": "bogus"}).status_code == 400

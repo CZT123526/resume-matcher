@@ -110,6 +110,15 @@ def structured_text(resume: dict, max_len: int = 1000) -> str:
     return text
 
 
+def _current_hashes(data: dict | None = None) -> dict[int, str]:
+    """全库当前编码输入哈希 {rid: md5(structured_text)}（ensure_cache/load_cache 共用）"""
+    data = data if data is not None else _current_resume_data()
+    return {
+        rid: hashlib.md5(structured_text(item).encode("utf-8")).hexdigest()
+        for rid, item in data.items()
+    }
+
+
 def _load_meta() -> dict:
     meta = json.loads(IDS_FILE.read_text(encoding="utf-8")) if IDS_FILE.exists() else {"order": [], "hashes": {}}
     meta.setdefault("encoder", "")  # 旧缓存无此字段 → 指纹不匹配触发重建
@@ -142,10 +151,7 @@ def ensure_cache(progress_cb=None) -> tuple[np.ndarray, list[int]]:
     空间导致新旧向量不可比。
     """
     data = _current_resume_data()
-    hashes = {
-        rid: hashlib.md5(structured_text(item).encode("utf-8")).hexdigest()
-        for rid, item in data.items()
-    }
+    hashes = _current_hashes(data)
     meta = _load_meta()
     fp = _encoder_fingerprint()
 
@@ -222,9 +228,18 @@ def ensure_cache(progress_cb=None) -> tuple[np.ndarray, list[int]]:
 
 
 def load_cache() -> tuple[np.ndarray, list[int]] | None:
-    """只读缓存；失效返回 None，由调用方触发 ensure_cache"""
+    """只读缓存；任何失效迹象返回 None，由调用方触发 ensure_cache。
+
+    B5 挑刺修复：此前不核对编码器指纹与简历哈希，消融/对照路径
+    （ranking.cosine_rank → load_cache）在重解析或换编码器后会拿到旧向量算旧分。
+    现在与 ensure_cache 快路径同一套校验：指纹或任一哈希对不上即视为失效。
+    """
     meta = _load_meta()
     if not meta["order"] or not VEC_FILE.exists():
+        return None
+    if meta["encoder"] != _encoder_fingerprint():
+        return None
+    if meta["hashes"] != _current_hashes():
         return None
     return np.load(VEC_FILE), meta["order"]
 

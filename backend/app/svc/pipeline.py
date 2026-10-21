@@ -48,7 +48,11 @@ def run_parse_pipeline(resume_id: int, file_bytes: bytes, filename: str) -> None
 def _run_parse(resume_id: int, file_bytes: bytes, filename: str) -> None:
     conn = get_db()
     try:
-        conn.execute("UPDATE resumes SET parse_status='processing' WHERE id=?", (resume_id,))
+        # 认领时盖属主 pid（B2）：另一进程启动清扫时探活跳过，不误杀在途解析
+        conn.execute(
+            "UPDATE resumes SET parse_status='processing', owner_pid=? WHERE id=?",
+            (os.getpid(), resume_id),
+        )
         conn.commit()
         try:
             text = parse_document(file_bytes, filename)["text"]

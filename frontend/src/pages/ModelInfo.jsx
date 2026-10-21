@@ -76,6 +76,16 @@ export default function ModelInfo() {
     <>
       <div className="card">
         <h3>模型状态</h3>
+        {info.encoder?.degraded && (
+          <div className="warn-text" style={{ marginBottom: 10 }}>
+            注意：语义编码当前为 TF-IDF 降级模式（BERT 加载失败），匹配分数口径与文档默认不同。原因：{info.encoder.reason || '未知'}
+          </div>
+        )}
+        {info.encoder?.forced && (
+          <div className="muted" style={{ marginBottom: 10 }}>
+            当前运行在强制 TF-IDF 消融模式，即 FORCE_TFIDF 环境变量已开启——属主动对照实验，不是故障。
+          </div>
+        )}
         <table>
           <tbody>
             <tr><td>模型</td><td>{MODEL_DISPLAY[info.model_name] || info.model_name}</td></tr>
@@ -83,6 +93,14 @@ export default function ModelInfo() {
             <tr>
               <td>实体抽取得分</td>
               <td>{info.f1 > 0 ? `${(info.f1 * 100).toFixed(1)}%` : '模型训练完成后自动展示'}</td>
+            </tr>
+            <tr>
+              <td>语义编码器</td>
+              <td>{info.encoder
+                ? (info.encoder.kind === 'bert'
+                  ? `BERT 本地推理，正常，${info.encoder.model}`
+                  : info.encoder.degraded ? 'TF-IDF 降级，BERT 加载失败' : 'TF-IDF，未启用 BERT')
+                : '—'}</td>
             </tr>
             <tr><td>训练语料</td><td>{info.train_samples ? `${info.train_samples} 句` : '—'}</td></tr>
             <tr><td>更新时间</td><td>{(info.updated_at || '—').slice(0, 10)}</td></tr>

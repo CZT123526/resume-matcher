@@ -1,7 +1,8 @@
 """匹配任务接口（API-08/09/10）+ 模型信息（API-12），契约见 docs/backend-api.md §3/§5。"""
 import json
+import os
 
-from fastapi import APIRouter, BackgroundTasks
+from fastapi import APIRouter, BackgroundTasks, Query
 
 from app.common.response import ok
 from app.core.errors import AppError, ErrorCode
@@ -22,8 +23,8 @@ def create_match_task(background: BackgroundTasks, body: MatchTaskCreate):
         if exists is None:
             raise AppError(ErrorCode.NOT_FOUND, f"JD {body.jd_id} 不存在")
         cur = conn.execute(
-            "INSERT INTO match_tasks(jd_id, top_k, status) VALUES(?,?,'pending')",
-            (body.jd_id, body.top_k),
+            "INSERT INTO match_tasks(jd_id, top_k, status, owner_pid) VALUES(?,?,'pending',?)",
+            (body.jd_id, body.top_k, os.getpid()),
         )
         task_id = cur.lastrowid
         conn.commit()
@@ -32,6 +33,53 @@ def create_match_task(background: BackgroundTasks, body: MatchTaskCreate):
 
     background.add_task(run_match_pipeline, task_id, body.jd_id, body.top_k)
     return ok({"task_id": task_id, "status": "pending"})
+
+
+@router.get("/api/match-tasks")
+def list_match_tasks(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(10, ge=1, le=50),
+    status: str | None = Query(None),
+):
+    """历史任务列表（A4 挑刺修复）：匹配结果按 task_id 完整存档，此前界面无入口再打开。
+
+    按 id 降序（新任务在前），带 JD 标题与结果条数，供匹配页历史面板直接回看。
+    """
+    if status is not None and status not in {"pending", "running", "done", "failed"}:
+        raise AppError(ErrorCode.BAD_PARAM, "status 取值非法")
+    conds, params = [], []
+    if status:
+        conds.append("t.status=?")
+        params.append(status)
+    where = f"WHERE {' AND '.join(conds)}" if conds else ""
+
+    conn = get_db()
+    try:
+        total = conn.execute(
+            f"SELECT COUNT(*) FROM match_tasks t {where}", params
+        ).fetchone()[0]
+        rows = conn.execute(
+            f"SELECT t.id, t.jd_id, j.title AS jd_title, t.top_k, t.status, t.progress, "
+            f"t.created_at, t.finished_at, "
+            f"(SELECT COUNT(*) FROM match_results m WHERE m.task_id=t.id) AS n_results "
+            f"FROM match_tasks t LEFT JOIN jds j ON j.id=t.jd_id {where} "
+            "ORDER BY t.id DESC LIMIT ? OFFSET ?",
+            [*params, page_size, (page - 1) * page_size],
+        ).fetchall()
+    finally:
+        conn.close()
+
+    from app.common.format import iso_time
+
+    items = [
+        {"task_id": r["id"], "jd_id": r["jd_id"], "jd_title": r["jd_title"] or "",
+         "top_k": r["top_k"], "status": r["status"], "progress": r["progress"],
+         "n_results": r["n_results"],
+         "created_at": iso_time(r["created_at"]) if r["created_at"] else "",
+         "finished_at": iso_time(r["finished_at"]) if r["finished_at"] else ""}
+        for r in rows
+    ]
+    return ok({"total": total, "items": items})
 
 
 @router.get("/api/match-tasks/{task_id}")
@@ -135,7 +183,15 @@ def match_task_score_distribution(task_id: int):
 
 @router.get("/api/model/info")
 def model_info():
-    """模型信息：训练产物 metrics.json 存在则真实指标，否则如实返回未训练状态"""
+    """模型信息：训练产物 metrics.json 存在则真实指标，否则如实返回未训练状态。
+
+    C9 挑刺修复：额外带 encoder 字段——当前语义编码器是 BERT 还是 TF-IDF、
+    是否为故障降级及原因。此前 BERT 加载失败会静默永久降级，界面上看不出
+    分数口径已经换掉。
+    """
+    from app.svc.embedding import encoder_status
+
+    enc = encoder_status()
     if METRICS_FILE.exists():
         metrics = json.loads(METRICS_FILE.read_text(encoding="utf-8"))
         return ok({
@@ -144,11 +200,9 @@ def model_info():
             "f1": float(metrics.get("f1", 0.0)),
             "train_samples": int(metrics.get("train_samples", 0)),
             "updated_at": metrics.get("trained_at", ""),
+            "encoder": enc,
         })
-    from app.svc.embedding import get_encoder
-
-    kind = get_encoder().kind
-    label = "bert-base-chinese（语义编码）；NER=规则兜底（微调模型未就位）" if kind == "bert" \
+    label = "bert-base-chinese（语义编码）；NER=规则兜底（微调模型未就位）" if enc["kind"] == "bert" \
         else "TF-IDF 降级编码；NER=规则兜底（模型环境缺失）"
     return ok({
         "model_name": label,
@@ -156,4 +210,5 @@ def model_info():
         "f1": 0.0,
         "train_samples": 0,
         "updated_at": "",
+        "encoder": enc,
     })

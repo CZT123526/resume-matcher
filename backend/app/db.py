@@ -60,9 +60,47 @@ def init_db(path: Optional[Path] = None) -> None:
         cols = {r[1] for r in conn.execute("PRAGMA table_info(match_score_dist)")}
         if cols and "ids_json" not in cols:
             conn.execute("ALTER TABLE match_score_dist ADD COLUMN ids_json TEXT")
+        # T53 挑刺修复：语料来源显式列（此前按 created_at 硬编码时间窗判定，
+        # 窗口一过口径静默漂移）+ 在途任务属主进程（启动清扫只清死进程的行，B2）
+        cols = {r[1] for r in conn.execute("PRAGMA table_info(resumes)")}
+        if cols and "source" not in cols:
+            conn.execute("ALTER TABLE resumes ADD COLUMN source TEXT")
+        if cols and "owner_pid" not in cols:
+            conn.execute("ALTER TABLE resumes ADD COLUMN owner_pid INTEGER")
+        cols = {r[1] for r in conn.execute("PRAGMA table_info(match_tasks)")}
+        if cols and "owner_pid" not in cols:
+            conn.execute("ALTER TABLE match_tasks ADD COLUMN owner_pid INTEGER")
+        _backfill_corpus_source(conn)
         conn.commit()
     finally:
         conn.close()
+
+
+# 一次性回填用的历史批量导入区间（2026-10-19 两批评测加试简历 + 2026-10-21 外校卷）。
+# 为什么当初用时间窗：改写简历 286~341 字、半规范简历 148~322 字，字数区间重叠分不开。
+# T53 起新上传一律在写入时显式标 source='business'；本表只服务 init_db 对存量行的一次性
+# 归类（source IS NULL 的行），不再参与任何运行时过滤——加新考卷批次请直接 UPDATE source。
+LEGACY_CORPUS_WINDOWS = {
+    "rewrite": ("2026-10-19 13:30:00", "2026-10-19 14:30:00"),   # T37 正文避词改写简历 160 份
+    "semispec": ("2026-10-19 15:00:00", "2026-10-19 16:00:00"),  # T38 半规范排版简历 100 份
+    "fresh": ("2026-10-21 00:00:00", "2026-10-22 00:00:00"),     # T46 外校卷全新岗位简历 50 份
+}
+
+
+def _backfill_corpus_source(conn) -> None:
+    """存量行一次性归类（幂等）：落在历史导入窗内的标对应语料，其余（NULL）按业务简历。
+
+    注意：init_db 的连接未设 row_factory，行按位置取（id, created_at）。
+    """
+    for rid, created_at in conn.execute(
+        "SELECT id, created_at FROM resumes WHERE source IS NULL"
+    ).fetchall():
+        src = "business"
+        for name, (start, end) in LEGACY_CORPUS_WINDOWS.items():
+            if start <= (created_at or "") < end:
+                src = name
+                break
+        conn.execute("UPDATE resumes SET source=? WHERE id=?", (src, rid))
 
 
 def rows_to_dicts(rows: list) -> list[dict[str, Any]]:
