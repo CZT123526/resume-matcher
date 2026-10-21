@@ -4,7 +4,7 @@
 - 技能重叠：Python/FastAPI (2/2)
 - 缺少技能：Docker
 - 学历满足：硕士≥本科 ｜ 学历不满足：本科<硕士 ｜ 学历：未识别
-- 经验满足：5年≥3年 ｜ 经验不足：1年<3年 ｜ 经验：未识别
+- 经验满足：5年≥3年 ｜ 经验不足：1年<3年（任一侧认不出就不出现本行，T49）
 """
 # 学历序（算法设计 §4）：显式映射，绝不复用 ner_rules 的匹配优先级顺序
 _DEGREE_RANK = {"大专": 0, "其他": 0, "本科": 1, "硕士": 2, "博士": 3}
@@ -45,20 +45,18 @@ def compute_evidence(jd_reqs: dict, resume_entities: list[dict]) -> list[str]:
         else:
             evidence.append(f"学历不满足：{resume_degree}<{jd_degree}")
 
-    # 3. 年限
+    # 3. 年限：任一侧认不出就不出现本行（T49 用户裁决删除「经验：未识别」占位——
+    #    库内简历原文 0/1372 有显式年限句式，占位行没有信息量，只会刷灰块）
     jd_years = jd_reqs.get("min_years")
     resume_years_raw = (by_key.get("years") or [None])[0]
-    if jd_years is None or resume_years_raw is None:
-        evidence.append("经验：未识别")
-    else:
-        try:
-            resume_years = int(str(resume_years_raw))
-        except ValueError:
-            evidence.append("经验：未识别")
+    try:
+        resume_years = int(str(resume_years_raw)) if resume_years_raw is not None else None
+    except ValueError:
+        resume_years = None
+    if jd_years is not None and resume_years is not None:
+        if resume_years >= jd_years:
+            evidence.append(f"经验满足：{resume_years}年≥{jd_years}年")
         else:
-            if resume_years >= jd_years:
-                evidence.append(f"经验满足：{resume_years}年≥{jd_years}年")
-            else:
-                evidence.append(f"经验不足：{resume_years}年<{jd_years}年")
+            evidence.append(f"经验不足：{resume_years}年<{jd_years}年")
 
     return evidence

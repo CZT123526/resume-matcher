@@ -64,8 +64,26 @@ def test_evidence_deficient():
 def test_evidence_unknown_fields():
     ev = compute_evidence({"skills": [], "degree": None, "min_years": None}, [])
     assert "学历：未识别" in ev
-    assert "经验：未识别" in ev
     assert not any(e.startswith("技能") for e in ev)
+
+
+def test_evidence_years_unknown_omitted():
+    """T49：任一侧年限认不出 → 经验行整行不出现，不再输出「经验：未识别」占位"""
+    # 双侧都缺
+    ev = compute_evidence({"min_years": None}, [])
+    assert not any(e.startswith("经验") for e in ev)
+    # 简历侧缺
+    ev2 = compute_evidence({"min_years": 3}, [{"field_key": "degree", "field_value": "本科"}])
+    assert not any(e.startswith("经验") for e in ev2)
+    # JD 侧缺
+    ev3 = compute_evidence({"min_years": None}, [{"field_key": "years", "field_value": "5"}])
+    assert not any(e.startswith("经验") for e in ev3)
+    # years 值非数字（历史脏数据）
+    ev4 = compute_evidence({"min_years": 3}, [{"field_key": "years", "field_value": "多年"}])
+    assert not any(e.startswith("经验") for e in ev4)
+    # 双侧齐全仍然正常给结论
+    ev5 = compute_evidence({"min_years": 3}, [{"field_key": "years", "field_value": "5"}])
+    assert "经验满足：5年≥3年" in ev5
 
 
 def test_duty_label_masked_from_skills():
