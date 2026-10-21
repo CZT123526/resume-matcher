@@ -29,8 +29,8 @@ export const uploadResume = (file) => {
   form.append('file', file)
   return request('/resumes/upload', { method: 'POST', body: form })
 }
-export const listResumes = (page = 1, pageSize = 500) =>
-  request(`/resumes?page=${page}&page_size=${pageSize}`)
+export const listResumes = (page = 1, pageSize = 20, corpus = 'all') =>
+  request(`/resumes?page=${page}&page_size=${pageSize}&corpus=${corpus}`)
 export const getResume = (id) => request(`/resumes/${id}`)
 export const deleteResume = (id) => request(`/resumes/${id}`, { method: 'DELETE' })
 // 简历原件地址（浏览器直接打开：PDF 预览 / DOCX 下载）
@@ -46,7 +46,7 @@ export const getJdRecommendations = (id, topK = 3) =>
 
 // ---------- JD ----------
 export const createJd = (title, content) => request('/jds', jsonInit('POST', { title, content }))
-export const listJds = (page = 1, pageSize = 100) =>
+export const listJds = (page = 1, pageSize = 20) =>
   request(`/jds?page=${page}&page_size=${pageSize}`)
 export const getJd = (id) => request(`/jds/${id}`)
 export const deleteJd = (id) => request(`/jds/${id}`, { method: 'DELETE' })
@@ -56,6 +56,9 @@ export const createMatchTask = (jdId, topK = 10) =>
   request('/match-tasks', jsonInit('POST', { jd_id: jdId, top_k: topK }))
 export const getMatchTask = (id) => request(`/match-tasks/${id}`)
 export const getMatchResults = (id) => request(`/match-tasks/${id}/results`)
+// 全量融合分分布（API-18，T40）：分布图数据源，历史任务返回空列表
+export const getMatchScoreDistribution = (id) =>
+  request(`/match-tasks/${id}/score_distribution`)
 
 // ---------- 模型 ----------
 export const getModelInfo = () => request('/model/info')

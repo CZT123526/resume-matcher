@@ -46,12 +46,13 @@
 ```
 
 ### GET /api/resumes ｜无需登录
-- Query：`page=1`、`page_size=20`、`parse_status=pending|processing|done|failed`（可省）
+- Query：`page=1`、`page_size=20`、`parse_status=pending|processing|done|failed`（可省）、`corpus=all|business|rewrite|semispec|fresh`（可省，语料筛选）
+- `corpus` 按批次时间窗区分（app/api/resumes.py `CORPUS_WINDOWS`）：`rewrite` 为 T37 改写简历 160 份、`semispec` 为 T38 半规范简历 100 份、`fresh` 为 T46 外校卷全新岗位简历 50 份，`business` 为窗口外全部（含此后新上传）；响应恒带五类计数 `corpus_counts`，前端下拉直接展示
 - 响应 `200`：
 ```json
 {"code": 0, "message": "ok", "data": {"total": 2, "items": [
   {"resume_id": 1, "file_name": "张三.pdf", "parse_status": "done", "created_at": "2026-10-10T15:00:00"}
-]}}
+], "corpus_counts": {"all": 1372, "business": 1062, "rewrite": 160, "semispec": 100, "fresh": 50}}}
 ```
 
 ### GET /api/resumes/{id} ｜无需登录
@@ -178,10 +179,22 @@
 ```json
 {"code": 0, "message": "ok", "data": {"task_id": 1, "jd_title": "Python后端工程师", "items": [
   {"rank": 1, "resume_id": 1, "candidate_name": "张三", "score": 0.87,
+   "score_detail": {"semantic": 0.9105, "lexical": 0.7667, "alpha": 0.7},
    "evidence": ["技能重叠：Python/FastAPI (2/2)", "学历满足：硕士≥本科", "经验满足：5年≥3年"]}
 ]}}
 ```
-> score 为语义相似度（0–1，4位小数）；evidence 文案格式定稿见 [算法设计.md](算法设计.md) §4（全角冒号，前端原样展示）。
+> score = α·semantic + (1−α)·lexical（融合回算一致，测试有断言）；score_detail 为 T42 构成明细，历史任务行为 `null`，前端据此隐藏明细行；evidence 文案格式定稿见 [算法设计.md](算法设计.md) §4（全角冒号，前端原样展示）。
+
+### GET /api/match-tasks/{id}/score_distribution ｜无需登录 ｜T40
+- 全量分数分布：任务完成时流水线把**全部**候选简历的融合分存档 `match_score_dist`（与 Top-K 结果**同一批分数**，`ranking.hybrid_scores` 一次融合两处消费），本接口原样返回供前端画分布图。
+- 响应 `200`：
+```json
+{"code": 0, "message": "ok", "data": {"task_id": 1, "jd_title": "Python后端工程师",
+  "n_candidates": 1322, "scores": [0.9214, 0.8857, "…（降序，4位小数）"],
+  "items": [{"resume_id": 1, "score": 0.9214, "name": "张三"}, "…与 scores 严格同序"]}}
+```
+> `items` 为 T43 候选人明细（点分布图柱子反查分数段简历用）；历史任务（存档表无 ids_json）返回空数组，前端点击自动忽略。历史任务（存档表无行）返回 `n_candidates: 0, scores: [], items: []`，前端据此隐藏分布图，不算错误。
+- 错误：`404 E4041` 任务不存在；`409 E4091` 任务未完成（同 results 口径）。
 
 ---
 

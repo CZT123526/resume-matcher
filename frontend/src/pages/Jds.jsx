@@ -1,24 +1,38 @@
 import { useCallback, useEffect, useState } from 'react'
 import { createJd, listJds, getJd, deleteJd } from '../api'
 
+const PAGE_SIZE = 20  // 分页：与简历列表同款交互（后端单页上限 100）
+
 export default function Jds() {
   const [items, setItems] = useState([])
+  const [total, setTotal] = useState(0)
+  const [page, setPage] = useState(1)
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
   const [detail, setDetail] = useState(null)
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
+  const [loaded, setLoaded] = useState(false)   // 首载骨架屏开关（T40）
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (nextPage = 1) => {
     try {
-      const data = await listJds()
+      let data = await listJds(nextPage, PAGE_SIZE)
+      // 翻到超出总页数的空页（如末页最后一条刚被删）时回退一页
+      if (!(data.items || []).length && nextPage > 1) {
+        data = await listJds(nextPage - 1, PAGE_SIZE)
+        nextPage -= 1
+      }
       setItems(data.items || [])
+      setTotal(data.total || 0)
+      setPage(nextPage)
     } catch (e) {
       setMsg(`加载失败：${e.message}`)
+    } finally {
+      setLoaded(true)
     }
   }, [])
 
-  useEffect(() => { refresh() }, [refresh])
+  useEffect(() => { refresh(1) }, [refresh])
 
   // 详情弹窗（T31）：× 或点遮罩或 Esc 关闭，正文弹窗内滚动
   const closeModal = () => setDetail(null)
@@ -40,7 +54,7 @@ export default function Jds() {
       setMsg(`已创建 JD ${data.jd_id}，结构化要求由系统自动抽取`)
       setTitle('')
       setContent('')
-      await refresh()
+      await refresh(1)  // 新 JD 编号最大排最前，回第 1 页立即可见
     } catch (e) {
       setMsg(`创建失败：${e.message}`)
     } finally {
@@ -67,11 +81,13 @@ export default function Jds() {
       const d = await deleteJd(detail.jd_id)
       setMsg(`已删除 JD ${d.jd_id}${d.deleted_match_tasks ? `（连带 ${d.deleted_match_tasks} 个匹配任务）` : ''}`)
       closeModal()
-      await refresh()
+      await refresh(page)
     } catch (e) {
       setMsg(`删除失败：${e.message}`)
     }
   }
+
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
   const renderTable = (rows) => (
     <table>
@@ -108,11 +124,36 @@ export default function Jds() {
       </div>
 
       <div className="card">
-        <h3>岗位列表（{items.length} 个）</h3>
-        {items.length === 0 ? (
+        <h3>岗位列表 · 共 {total} 个</h3>
+        {!loaded ? (
+          <div>
+            {[88, 76, 64, 55].map((w, i) => (
+              <div key={i} className="skeleton" style={{ height: 18, width: `${w}%`, marginBottom: 14 }} />
+            ))}
+          </div>
+        ) : items.length === 0 ? (
           <div className="empty">还没有 JD，先创建一条</div>
         ) : (
           renderTable(items)
+        )}
+        {totalPages > 1 && (
+          <div className="pager">
+            <button className="btn ghost" disabled={page <= 1} onClick={() => refresh(page - 1)}>
+              上一页
+            </button>
+            <span className="pager-jump">
+              第
+              <select value={page} onChange={(e) => refresh(Number(e.target.value))}>
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+                  <option key={p} value={p}>{p}</option>
+                ))}
+              </select>
+              / {totalPages} 页
+            </span>
+            <button className="btn ghost" disabled={page >= totalPages} onClick={() => refresh(page + 1)}>
+              下一页
+            </button>
+          </div>
         )}
       </div>
 

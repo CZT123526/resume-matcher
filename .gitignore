@@ -39,3 +39,4 @@ logs/
 .vscode/
 .DS_Store
 Thumbs.db
+backend/tools/data/aug/

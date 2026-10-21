@@ -187,6 +187,21 @@ Body：`{"jd_id": int, "top_k": int=10, 1..50}`
 
 失败：E4041；任务未完成时调用返回 E4091。
 
+### GET /api/match-tasks/{id}/score_distribution `200` ｜T40
+
+全量融合分分布（与 results 同一批分数的降序全列表），供分布图分桶。
+
+`data`：
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| task_id | int | |
+| jd_title | string | |
+| n_candidates | int | 参与排名的简历总数；历史任务（无存档）为 0 |
+| scores | float[] | 全量融合分，**降序**、4 位小数、0~1；`scores[0]` 恒等于 results 第一名分数 |
+
+失败：E4041；任务未完成时调用返回 E4091。历史任务返回空列表（200），前端隐藏分布图。
+
 ---
 
 ## 4. 其他

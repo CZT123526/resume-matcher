@@ -2,12 +2,14 @@
 import json
 import logging
 
+import numpy as np
+
 from app.config import settings
 from app.db import get_db
 from app.svc.evidence import compute_evidence
 from app.svc.jd_parsing import build_jd_requirements
 from app.svc.lexical import adaptive_alpha, coverage_from_scores, extract_jd_keywords, keyword_hit_score
-from app.svc.ranking import hybrid_rank
+from app.svc.ranking import hybrid_scores
 from app.svc.vectors import _current_resume_data, ensure_cache, load_query_encoder, structured_text
 
 logger = logging.getLogger(__name__)
@@ -84,7 +86,35 @@ def run_match_pipeline(task_id: int, jd_id: int, top_k: int) -> None:
             alpha = adaptive_alpha(alpha, coverage_from_scores(lex_scores.values()))
             logger.info("自适应 α：coverage=%.3f → α_eff=%.3f（base=%.2f）",
                         coverage_from_scores(lex_scores.values()), alpha, settings.MATCH_ALPHA)
-        ranked = hybrid_rank(jd_vec, lex_scores, top_k, alpha=alpha)
+        # T40：Top-K 与全量分布同源——hybrid_scores 一次融合，排名就地截断，
+        # 全量分数降序存档 match_score_dist（分布图接口读它，不二次计算）
+        final, bert_arr, lex_arr, order = hybrid_scores(jd_vec, lex_scores, alpha=alpha)
+        top = np.argsort(-final)[: max(int(top_k), 0)]
+        ranked = [
+            {"resume_id": int(order[i]), "score": round(float(final[i]), 4),
+             "semantic": round(float(bert_arr[i]), 4), "lexical": round(float(lex_arr[i]), 4)}
+            for i in top
+        ]
+        # T43 全量分数 + 候选人明细：先按 简历×分数 配对再降序，保证 scores 与
+        # items 严格同序（前端点分布图柱子时按下标反查"这个分数段是谁"）。
+        # 名字取 name 实体，缺失则占位 候选人{id}（与结果接口同口径）
+        name_rows = conn.execute(
+            "SELECT resume_id, field_value FROM entities WHERE field_key='name'"
+        ).fetchall()
+        names = {int(r["resume_id"]): r["field_value"] for r in name_rows}
+        dist_items = sorted(
+            ({"resume_id": int(rid), "score": round(float(s), 4),
+              "name": names.get(int(rid), f"候选人{rid}")}
+             for rid, s in zip(order, final)),
+            key=lambda x: x["score"], reverse=True,
+        )
+        dist_scores = [x["score"] for x in dist_items]
+        conn.execute(
+            "INSERT INTO match_score_dist(task_id, n_candidates, scores_json, ids_json) VALUES(?,?,?,?) "
+            "ON CONFLICT(task_id) DO UPDATE SET n_candidates=excluded.n_candidates, "
+            "scores_json=excluded.scores_json, ids_json=excluded.ids_json",
+            (task_id, len(dist_scores), json.dumps(dist_scores), json.dumps(dist_items, ensure_ascii=False)),
+        )
         _set(conn, "running", 85)
 
         rows = []
@@ -95,12 +125,14 @@ def run_match_pipeline(task_id: int, jd_id: int, top_k: int) -> None:
             ).fetchall()
             entities = [dict(r) for r in ent_rows]
             evidence = compute_evidence(req, entities)
+            detail = {"semantic": item["semantic"], "lexical": item["lexical"],
+                      "alpha": round(float(alpha), 4)}
             rows.append((task_id, item["resume_id"], rank, item["score"],
-                         json.dumps(evidence, ensure_ascii=False)))
+                         json.dumps(evidence, ensure_ascii=False), json.dumps(detail)))
         conn.execute("DELETE FROM match_results WHERE task_id=?", (task_id,))
         conn.executemany(
-            "INSERT INTO match_results(task_id, resume_id, rank, score, evidence_json) "
-            "VALUES(?,?,?,?,?)",
+            "INSERT INTO match_results(task_id, resume_id, rank, score, evidence_json, detail_json) "
+            "VALUES(?,?,?,?,?,?)",
             rows,
         )
         conn.execute(

@@ -59,9 +59,20 @@ CREATE TABLE IF NOT EXISTS match_results (
     rank          INTEGER NOT NULL,                  -- 排名（1=最匹配）
     score         REAL    NOT NULL,                  -- 归一化语义相似度 0~1（4位小数），见 docs/算法设计.md §3
     evidence_json TEXT    NOT NULL DEFAULT '[]',     -- 证据链JSON数组，文案格式见 docs/算法设计.md §4
+    detail_json   TEXT,                              -- 分数构成明细JSON（T42：semantic/lexical/alpha），旧行为 NULL
     created_at    TEXT    NOT NULL DEFAULT (datetime('now','localtime')) -- 生成时间
 );
 CREATE INDEX IF NOT EXISTS idx_results_task ON match_results(task_id, rank); -- 按任务取排名结果
+
+-- 匹配全量分数分布表（T40）：任务完成时把**全部**候选简历的融合分存档一份
+-- （match_results 只存 Top-K 截断后的行，分布图需要全量）。降序 4 位小数。
+CREATE TABLE IF NOT EXISTS match_score_dist (
+    task_id       INTEGER PRIMARY KEY REFERENCES match_tasks(id) ON DELETE CASCADE, -- 所属任务
+    n_candidates  INTEGER NOT NULL,                  -- 参与排名的简历总数（=融合分个数）
+    scores_json   TEXT    NOT NULL,                  -- 全量融合分JSON数组（降序，4位小数）
+    ids_json      TEXT,                              -- 候选人明细JSON（T43：[{resume_id,score,name}]，与scores同序），旧行为 NULL
+    created_at    TEXT    NOT NULL DEFAULT (datetime('now','localtime')) -- 生成时间
+);
 
 -- 用户表（权限模块预留，当前版本不启用）
 CREATE TABLE IF NOT EXISTS users (
