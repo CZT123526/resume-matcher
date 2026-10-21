@@ -9,15 +9,16 @@ const Chart = lazy(() => import('../components/Chart'))
 // stress_report.json、fresh_report.json（2026-10-19/21 冻结）。前端只做展示，评测以 docs/eval/ 产物为准。
 // 展示纪律：界面文案不写括号注解；页面表达中文先行、少英文少符号，专业术语对照统一收进脚注（用户要求）
 const EVAL_MAIN = [
-  { name: '对比微调模型 *', v: 1.0, kind: 'ablation' },
-  { name: '词面检索对照', v: 0.9898, kind: 'baseline' },
-  { name: '大模型对照', v: 0.9783, kind: 'baseline' },
+  { name: '对比微调模型 *', v: 1.0, kind: 'oursmodel' },
+  { name: '词面检索对照', v: 0.9898, kind: 'ref' },
+  { name: '大模型对照', v: 0.9783, kind: 'ref' },
   { name: '本文方法 · 自动权重', v: 0.9522, kind: 'ours' },
   { name: '本文方法 · 固定权重', v: 0.9305, kind: 'ours' },
-  { name: '纯语义 · 领域预训练', v: 0.7483, kind: 'ablation' },
-  { name: '纯语义 · 原始底座', v: 0.6968, kind: 'ablation' },
+  { name: '纯语义 · 领域预训练', v: 0.7483, kind: 'oursmodel' },
+  { name: '纯语义 · 原始底座', v: 0.6968, kind: 'ref' },
 ]
-const KIND_COLOR = { ours: '#2563eb', baseline: '#64748b', ablation: '#cbd5e1' }
+// 蓝=线上在用的本文方法；浅蓝=我们训练的模型部件；灰=外部参照与未加工的起点
+const KIND_COLOR = { ours: '#2563eb', oursmodel: '#93c5fd', ref: '#64748b' }
 
 // 模型标识 → 中文展示名（标识符本身是训练产物名，不修改数据）
 const MODEL_DISPLAY = { 'bert-base-chinese-ner': '中文 BERT 实体抽取模型' }
@@ -96,7 +97,8 @@ export default function ModelInfo() {
       <div className="card">
         <h3>评测成绩单 · 排序得分，满分 1 分</h3>
         <div className="muted" style={{ marginBottom: 8 }}>
-          主测试集：1062 份简历、55 个岗位、46 条查询、金标准 8142 对；蓝色是本系统方法，深灰是外部对照，浅灰是拆解验证
+          主测试集：1062 份简历、55 个岗位、46 条查询、金标准 8142 对；
+          蓝色为线上在用的本文方法，浅蓝为我们训练的模型部件，灰色为外部参照与未加工的起点
         </div>
         <Suspense fallback={<div className="skeleton" style={{ height: 300 }} />}>
           <Chart option={buildEvalOption()} height={300} />
@@ -106,6 +108,7 @@ export default function ModelInfo() {
           三批加试进一步验证：改写卷把简历正文全部重写，对比微调 0.98 反超词面检索 0.96；半规范卷只换排版不换内容，语义编码 0.98——伤系统的是内容缺失，不是排版花哨；
           外校卷用 10 种全新岗位、50 份逐份手写的简历，对比微调仍有 0.97。
           术语对照：词面检索即 TF-IDF、大模型对照即 DeepSeek、对比微调即 bert_pair、领域预训练即 DAPT、原始底座即 BERT、排序得分即 NDCG@10、实体抽取得分即 F1。
+          分组说明：线上在用的只有本文方法一组；对比微调与领域预训练是我们训练的模型，单独列行验证各部件贡献；灰色三行是拿来做尺子的参照。
           数值以项目评测报告存档为准，此处保留两位小数。
         </p>
       </div>
