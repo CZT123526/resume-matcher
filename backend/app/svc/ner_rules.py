@@ -129,9 +129,13 @@ def _skill_present(kw: str, text_lower: str) -> bool:
     """ASCII 关键词按词边界匹配，中文关键词按子串匹配（T29.2）。
 
     朴素子串会把 "MySQL" 里的 "sql" 误切出来——页面上就是一条原文里不存在的技能。
+    T51：ASCII 词尾允许可选复数 s（简历写 "Transformers" 也认得词典词
+    "Transformer"）；关键词本身以 s 结尾的（pandas/redis）不再追加，避免匹配 pandass。
     """
     if kw.isascii():
-        pat = rf"(?<![a-z0-9]){re.escape(kw.lower())}(?![a-z0-9])"
+        lo = kw.lower()
+        tail = "" if lo.endswith("s") else "s?"
+        pat = rf"(?<![a-z0-9]){re.escape(lo)}{tail}(?![a-z0-9])"
         return re.search(pat, text_lower) is not None
     return kw.lower() in text_lower
 
