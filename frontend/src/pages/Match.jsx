@@ -128,9 +128,11 @@ export default function Match() {
     return () => clearInterval(timerRef.current)
   }, [])
 
+  // 轮询任务状态：立即探一次再进入 800ms 间隔——常态匹配亚秒级完成，
+  // 原先 2s 首轮询会让快任务在前端白等（后端实测热路径 0.5s，冷启动首跑 20s 属一次性成本）
   const startPolling = (taskId) => {
     clearInterval(timerRef.current)
-    timerRef.current = setInterval(async () => {
+    const tick = async () => {
       try {
         const t = await getMatchTask(taskId)
         setTask(t)
@@ -149,7 +151,9 @@ export default function Match() {
         clearInterval(timerRef.current)
         setMsg(`轮询失败：${e.message}`)
       }
-    }, 2000)
+    }
+    tick()
+    timerRef.current = setInterval(tick, 800)
   }
 
   // 点柱子 → 反查该分数段的候选人（与画图同一分箱函数，永不错位）；历史任务无明细则忽略
