@@ -63,11 +63,11 @@ const fixtures = {
     items: [
       {
         rank: 1, resume_id: 1, candidate_name: '张三', score: 0.8712,
-        evidence: ['技能重叠：Python/FastAPI (2/2)', '学历满足：硕士≥本科', '经验满足：5年≥3年'],
+        evidence: ['符合：Python', '符合：FastAPI', '不符合：Docker', '符合：学历 硕士≥本科', '符合：经验 5年≥3年'],
       },
       {
         rank: 2, resume_id: 2, candidate_name: '候选人2', score: 0.6235,
-        evidence: ['技能重叠：Python (1/2)', '缺少技能：FastAPI', '学历：未识别', '经验满足：3年≥3年'],
+        evidence: ['符合：Python', '不符合：FastAPI', '不符合：Docker', '符合：经验 3年≥3年'],
       },
     ],
   }),

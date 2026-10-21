@@ -180,7 +180,7 @@
 {"code": 0, "message": "ok", "data": {"task_id": 1, "jd_title": "Python后端工程师", "items": [
   {"rank": 1, "resume_id": 1, "candidate_name": "张三", "score": 0.87,
    "score_detail": {"semantic": 0.9105, "lexical": 0.7667, "alpha": 0.7},
-   "evidence": ["技能重叠：Python/FastAPI (2/2)", "学历满足：硕士≥本科", "经验满足：5年≥3年"]}
+   "evidence": ["符合：Python", "符合：FastAPI", "不符合：Docker", "符合：学历 硕士≥本科", "符合：经验 5年≥3年"]}
 ]}}
 ```
 > score = α·semantic + (1−α)·lexical（融合回算一致，测试有断言）；score_detail 为 T42 构成明细，历史任务行为 `null`，前端据此隐藏明细行；evidence 文案格式定稿见 [算法设计.md](算法设计.md) §4（全角冒号，前端原样展示）。

@@ -5,10 +5,12 @@ import ResumeDetailModal from '../components/ResumeDetailModal'
 // 图表懒加载（T40）：echarts 只在出结果后按需拉取，主包保持轻量
 const Chart = lazy(() => import('../components/Chart'))
 
-// 证据链文案 → 颜色（契约文案格式见 docs/算法设计.md §4）
+// 证据链文案 → 颜色（契约文案格式见 docs/算法设计.md §4；T50 起每条 JD 要求一个标签）
+// 注意顺序：先判「不符合」再判「符合」（"不符合"二字里含"符合"）；
+// 旧任务的历史文案（技能重叠/学历满足/缺少技能…）为存档原样，保持兼容着色
 const chipKind = (text) => {
-  if (/满足|重叠/.test(text)) return 'ok'
-  if (/缺少|不满足|不足/.test(text)) return 'bad'
+  if (/不符合|不满足|不足|缺少/.test(text)) return 'bad'
+  if (/符合|满足|重叠/.test(text)) return 'ok'
   return 'unknown'
 }
 
