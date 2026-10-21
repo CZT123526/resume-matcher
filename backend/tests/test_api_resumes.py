@@ -220,6 +220,29 @@ def test_search_fulltext_and_short_keyword():
     assert client.get("/api/resumes/search", params={"q": "   "}).status_code == 400
 
 
+def test_search_like_wildcards_are_literal():
+    """挑刺修复：LIKE 降级路径把 % _ 转义为字面义——此前搜 % 或 _ 会假命中全库"""
+    client.post("/api/resumes/upload", files={"file": (
+        "通配符简历.docx",
+        _make_docx("姓名：赵六\n技能：web_爬虫 数据抓取\n自我评价：100%专注"),
+        "application/octet-stream",
+    )})
+
+    # 下划线：只命中真含下划线的简历（此前是单字通配符，全库皆命中）
+    r = client.get("/api/resumes/search", params={"q": "_"})
+    assert r.status_code == 200
+    d = r.json()["data"]
+    assert d["total"] >= 1
+    assert all("_" in i["snippet"] for i in d["items"])
+
+    # 百分号：同理只命中真含 % 的简历
+    r2 = client.get("/api/resumes/search", params={"q": "%"})
+    assert r2.status_code == 200
+    d2 = r2.json()["data"]
+    assert d2["total"] >= 1
+    assert all("%" in i["snippet"] for i in d2["items"])
+
+
 def test_detail_quality_signal():
     """T29：详情带 quality（像不像简历/实体数/正文字数）"""
     rid = client.post("/api/resumes/upload", files={"file": ("质检.docx", _make_docx(RESUME_TEXT), "application/octet-stream")}).json()["data"]["resume_id"]
