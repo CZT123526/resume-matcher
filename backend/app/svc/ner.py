@@ -85,6 +85,21 @@ def extract_entities_bert(text: str) -> list[dict[str, str]]:
                     continue
                 if not _has_line_basis(item["word"], chunk):
                     continue
+                if field_key == "skill":
+                    # 技能以词典为运行时契约（T51，T45 原则落到底）：BERT 把空格分隔的
+                    # 技能串粘成一条（"PyTorch Transformers Python"），原样入库会被
+                    # 词典护栏整串丢掉——改为直接在片段上跑词典匹配，粘连串拆成
+                    # 逐个技能，词典查不到的碎片自然不留（宁缺勿错同一口径）
+                    for kw in ner_rules.match_skills(item["word"]):
+                        value = ner_rules.normalize_value("skill", kw)
+                        if value and not any(
+                            e["field_key"] == "skill" and e["field_value"] == value
+                            for e in entities
+                        ):
+                            entities.append(
+                                {"field_key": "skill", "field_value": value, "source": "rule"}
+                            )
+                    continue
                 if field_key == "title" and _is_project_line(item["word"], lines, sections):
                     # 项目栏目里的"职位"多为项目名/项目内角色（"AI 日程管家/项目负责人"），
                     # 不是求职岗位——原文有据但字段错，宁缺勿错（T30.3）
@@ -116,8 +131,16 @@ def _merge_rule_fallback(entities: list[dict[str, str]], text: str) -> list[dict
     上高发（证书行密集），症状是结构化文本里连求职岗位四个字都没有。
     """
     covered = {e["field_key"] for e in entities}
+    skill_vals = {e["field_value"] for e in entities if e["field_key"] == "skill"}
     for e in ner_rules.extract_entities(text):
-        if e["field_key"] not in covered:
+        # 技能是值级并集（T51）：BERT 片段匹配与全文词典匹配收敛到同一 SKILL_DICT
+        # 契约，并集只补漏（BERT 整段漏标的技能由词典兜回），不引入词典外的值；
+        # 其余字段维持原字段级兜底（BERT 抽过就不重复猜）
+        if e["field_key"] == "skill":
+            if e["field_value"] not in skill_vals:
+                skill_vals.add(e["field_value"])
+                entities.append(e)
+        elif e["field_key"] not in covered:
             entities.append(e)
     it = ner_rules.intent_title(text)
     if it and it not in {e["field_value"] for e in entities if e["field_key"] == "title"}:

@@ -127,6 +127,63 @@ def test_industry_skill_words_boundaries():
     assert "autocad" in got2 and "cad" not in got2     # 词边界挡住子串误切
 
 
+def test_plural_skill_word_boundary():
+    """回归（T51，简历 678 实况）：简历写复数 "Transformers" 也要认得词典词
+    "Transformer"——空格分隔技能行整行此前只抽出 c++，证据链全标红的根因之一"""
+    from app.svc.ner_rules import match_skills
+    got = {s.lower() for s in match_skills("熟练使用 PyTorch Transformers Python C++，熟悉向量检索与模型部署")}
+    assert {"pytorch", "transformer", "python", "c++"} <= got
+    # 复数容错不越界：词中出现的 skill 子串依旧不收（sql 不得从 mysql 里切出）
+    got2 = {s.lower() for s in match_skills("会 Golang 和 MySQL")}
+    assert "golang" in got2 and "go" not in got2 and "sql" not in got2
+    # 以 s 结尾的词典词（pandas/redis）不得匹配到再加 s 的写法
+    assert "redis" in {s.lower() for s in match_skills("用 Redis 与 Pandas")}
+
+
+def test_bert_merged_skill_span_dict_split(monkeypatch):
+    """回归（T51，简历 678 实况）：BERT 把空格分隔技能粘成长串、词典护栏整串丢弃，
+    而 skill 字段已被幸存的 c++ 占住——字段级兜底不再触发，PyTorch/Transformer/Python
+    全丢。修复后 BERT 技能片段直接按词典拆分入库，粘连串消失、幸存值去重保留"""
+    from app.svc import ner
+
+    def fake_pipe(chunk):
+        out = []
+        for line in chunk.splitlines():
+            if "职业技能" in line:
+                out.append({"entity_group": "skill", "word": "C++"})                    # 单技能，幸存
+                out.append({"entity_group": "skill", "word": "PyTorch Transformers Python"})  # 粘连长串
+        return out
+
+    monkeypatch.setattr(ner, "_get_bert_pipeline", lambda: fake_pipe)
+    text = "职业技能：熟练使用 PyTorch Transformers Python C++，熟悉向量检索与模型部署\n"
+    ents = ner.extract_entities_bert(text)
+    skills = {e["field_value"] for e in ents if e["field_key"] == "skill"}
+    assert skills == {"c++", "pytorch", "transformer", "python"}
+    assert all(e["field_value"] != "pytorchtransformerspython" for e in ents)
+
+
+def test_bert_unmatchable_skill_span_dropped(monkeypatch):
+    """T51：词典查不到的粘连碎片依旧丢弃（宁缺勿错），且不产出词典外的技能值"""
+    from app.svc import ner
+
+    def fake_pipe(chunk):
+        return [{"entity_group": "skill", "word": "tradosmemoqxbench"}]
+
+    monkeypatch.setattr(ner, "_get_bert_pipeline", lambda: fake_pipe)
+    ents = ner.extract_entities_bert("职业技能：tradosmemoqxbench\n")
+    assert all(e["field_key"] != "skill" for e in ents)
+
+
+def test_merge_rule_fallback_skill_value_union():
+    """回归（T51）：skill 兜底从字段级升级为值级并集——BERT 只抽出部分技能时
+    （字段已被占住），全文词典匹配命中的其余技能仍要补上，口径与词典契约一致"""
+    from app.svc.ner import _merge_rule_fallback
+    ents = [{"field_key": "skill", "field_value": "c++", "source": "bert"}]
+    merged = _merge_rule_fallback(ents, "职业技能：熟练使用 PyTorch 与 MySQL\n")
+    skills = {e["field_value"] for e in merged if e["field_key"] == "skill"}
+    assert skills == {"c++", "pytorch", "mysql"}
+
+
 def test_bert_spans_need_line_basis(monkeypatch):
     """回归（T29.2）：BERT 词碎片（##ot）与跨行粘连串不得落库，同行片段照常保留"""
     from app.svc import ner
