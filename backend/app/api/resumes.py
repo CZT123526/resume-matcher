@@ -25,6 +25,7 @@ SUPPORTED_EXTS = {".pdf", ".docx"}
 CORPUS_WINDOWS = {
     "rewrite": ("2026-10-19 13:30:00", "2026-10-19 14:30:00"),   # T37 正文避词改写简历 160 份
     "semispec": ("2026-10-19 15:00:00", "2026-10-19 16:00:00"),  # T38 半规范排版简历 100 份
+    "fresh": ("2026-10-21 00:00:00", "2026-10-22 00:00:00"),     # T46 外校卷全新岗位简历 50 份
 }
 
 
@@ -76,9 +77,9 @@ def list_resumes(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=500),
     parse_status: str | None = Query(None),
-    corpus: str = Query("all", pattern="^(all|business|rewrite|semispec)$"),
+    corpus: str = Query("all", pattern="^(all|business|rewrite|semispec|fresh)$"),
 ):
-    """分页列表（不含 raw_text 大字段）；parse_status / corpus 可选过滤；响应带四类语料计数"""
+    """分页列表（不含 raw_text 大字段）；parse_status / corpus 可选过滤；响应带五类语料计数"""
     if parse_status is not None and parse_status not in {"pending", "processing", "done", "failed"}:
         raise AppError(ErrorCode.BAD_PARAM, "parse_status 取值非法")
 
@@ -92,6 +93,7 @@ def list_resumes(
     biz_cond = _corpus_conds("business")[0]
     rw_cond = _corpus_conds("rewrite")[0]
     sw_cond = _corpus_conds("semispec")[0]
+    fr_cond = _corpus_conds("fresh")[0]
 
     conn = get_db()
     try:
@@ -101,11 +103,12 @@ def list_resumes(
             "ORDER BY id DESC LIMIT ? OFFSET ?",
             [*params, page_size, (page - 1) * page_size],
         ).fetchall()
-        n_all, n_biz, n_rw, n_sw = conn.execute(
+        n_all, n_biz, n_rw, n_sw, n_fr = conn.execute(
             f"SELECT COUNT(*),"
             f" SUM(CASE WHEN {biz_cond} THEN 1 ELSE 0 END),"
             f" SUM(CASE WHEN {rw_cond} THEN 1 ELSE 0 END),"
-            f" SUM(CASE WHEN {sw_cond} THEN 1 ELSE 0 END)"
+            f" SUM(CASE WHEN {sw_cond} THEN 1 ELSE 0 END),"
+            f" SUM(CASE WHEN {fr_cond} THEN 1 ELSE 0 END)"
             " FROM resumes"
         ).fetchone()
     finally:
@@ -118,7 +121,8 @@ def list_resumes(
     ]
     return ok({
         "total": total, "items": items,
-        "corpus_counts": {"all": n_all, "business": n_biz, "rewrite": n_rw, "semispec": n_sw},
+        "corpus_counts": {"all": n_all, "business": n_biz, "rewrite": n_rw,
+                          "semispec": n_sw, "fresh": n_fr},
     })
 
 

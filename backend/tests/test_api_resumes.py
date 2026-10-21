@@ -73,7 +73,7 @@ def test_list_pagination_and_filter():
 
 
 def test_list_corpus_filter():
-    """corpus 语料筛选：按 T37/T38 加试简历时间窗分批，窗口外（含新上传）一律正式简历"""
+    """corpus 语料筛选：按 T37/T38/T46 加试简历时间窗分批，窗口外（含新上传）一律正式简历"""
     from app.db import get_db
     conn = get_db()
     try:
@@ -85,14 +85,19 @@ def test_list_corpus_filter():
             "VALUES('半规范卷.docx','docx','done','2026-10-19 15:25:00','正文')")
         conn.execute(
             "INSERT INTO resumes(file_name, file_type, parse_status, created_at, raw_text) "
+            "VALUES('外校卷.docx','docx','done','2026-10-21 09:30:00','正文')")
+        conn.execute(
+            "INSERT INTO resumes(file_name, file_type, parse_status, created_at, raw_text) "
             "VALUES('业务简历.docx','docx','done','2026-10-20 09:00:00','正文')")
         conn.commit()
     finally:
         conn.close()
 
     counts = client.get("/api/resumes", params={"page_size": 1}).json()["data"]["corpus_counts"]
-    assert counts["rewrite"] >= 1 and counts["semispec"] >= 1 and counts["business"] >= 1
-    assert counts["all"] == counts["business"] + counts["rewrite"] + counts["semispec"]
+    assert counts["rewrite"] >= 1 and counts["semispec"] >= 1
+    assert counts["business"] >= 1 and counts["fresh"] >= 1
+    assert counts["all"] == (counts["business"] + counts["rewrite"]
+                             + counts["semispec"] + counts["fresh"])
 
     def names(corpus):
         d = client.get("/api/resumes", params={"corpus": corpus, "page_size": 500}).json()["data"]
@@ -100,7 +105,8 @@ def test_list_corpus_filter():
 
     assert "改写卷.docx" in names("rewrite") and "业务简历.docx" not in names("rewrite")
     assert "半规范卷.docx" in names("semispec") and "改写卷.docx" not in names("semispec")
-    assert "业务简历.docx" in names("business") and "改写卷.docx" not in names("business")
+    assert "外校卷.docx" in names("fresh") and "业务简历.docx" not in names("fresh")
+    assert "业务简历.docx" in names("business") and "外校卷.docx" not in names("business")
 
     # 非法 corpus 走全局校验处理器：契约统一 400 + E4001（与 parse_status 一致）
     r4 = client.get("/api/resumes", params={"corpus": "bogus"})

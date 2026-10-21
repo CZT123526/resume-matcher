@@ -11,7 +11,7 @@ export default function Resumes() {
   const [items, setItems] = useState([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
-  const [corpus, setCorpus] = useState('all')       // 语料筛选：all/business/rewrite/semispec
+  const [corpus, setCorpus] = useState('all')       // 语料筛选：all/business/rewrite/semispec/fresh
   const [corpusCounts, setCorpusCounts] = useState(null)
   const [detailId, setDetailId] = useState(null)  // 详情弹窗：只存 id，取数与动作都封装在弹窗组件里
   const [busy, setBusy] = useState(false)
@@ -179,6 +179,7 @@ export default function Resumes() {
               <option value="business">正式简历{corpusCounts ? ` · ${corpusCounts.business}` : ''}</option>
               <option value="rewrite">改写简历{corpusCounts ? ` · ${corpusCounts.rewrite}` : ''}</option>
               <option value="semispec">半规范简历{corpusCounts ? ` · ${corpusCounts.semispec}` : ''}</option>
+              <option value="fresh">外校卷简历{corpusCounts ? ` · ${corpusCounts.fresh}` : ''}</option>
             </select>
           )}
         </div>

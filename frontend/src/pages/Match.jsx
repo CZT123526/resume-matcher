@@ -96,6 +96,29 @@ export default function Match() {
   const [busy, setBusy] = useState(false)
   const timerRef = useRef(null)
 
+  // 校准分（T46）：min-max 归一化只动展示——把本轮全量融合分线性拉伸到 0~100，
+  // 最低 0 最高 100。排序、存档、评测口径全部仍用原始融合分；历史任务无存档则退回原始分
+  const calRange = dist?.scores?.length
+    ? (() => {
+        let mn = Infinity
+        let mx = -Infinity
+        for (const s of dist.scores) {
+          if (s < mn) mn = s
+          if (s > mx) mx = s
+        }
+        return { mn, mx }
+      })()
+    : null
+  const calOf = (s) => {
+    if (!calRange) return null
+    return Math.round((calRange.mx > calRange.mn
+      ? (s - calRange.mn) / (calRange.mx - calRange.mn)
+      : 1) * 100)
+  }
+  const calTip = calRange
+    ? `校准分：把本轮 ${dist.n_candidates} 份候选人的融合分做 min-max 归一化，线性拉伸到 0 到 100，最低 0 分、最高 100 分，只用于横向对比本轮内的相对高低；推荐排序与原始融合分不受影响`
+    : ''
+
   useEffect(() => {
     // 下拉是岗位全量选项，显式拉到后端单页上限 100（列表页的分页默认值 20 与此无关）
     listJds(1, 100).then((d) => {
@@ -210,7 +233,11 @@ export default function Match() {
           </div>
           <table>
             <thead>
-              <tr><th>#</th><th>姓名</th><th>简历</th><th>融合分</th><th>操作</th></tr>
+              <tr>
+                <th>#</th><th>姓名</th><th>简历</th><th>融合分</th>
+                <th title={calTip}>校准分 ⓘ</th>
+                <th>操作</th>
+              </tr>
             </thead>
             <tbody>
               {binSel.list.map((x, i) => (
@@ -219,6 +246,7 @@ export default function Match() {
                   <td>{x.name}</td>
                   <td className="muted">简历 {x.resume_id}</td>
                   <td>{x.score}</td>
+                  <td>{calOf(x.score)}</td>
                   <td>
                     <button className="btn ghost"
                       onClick={(e) => { e.stopPropagation(); setPreviewId(x.resume_id) }}>预览</button>
@@ -238,13 +266,15 @@ export default function Match() {
           ) : (
             <>
               <div className="muted" style={{ marginBottom: 8 }}>
-                分数为语义与词面的加权综合，同领域文本普遍偏高，对比排名与超过比例更直观
+                展示用校准分：把本轮融合分线性拉伸到 0 到 100，同领域文本原始分普遍偏高，拉伸后更容易看出差距 · 鼠标停在 ⓘ 上看算法说明
               </div>
               {results.items.map((item) => {
                 // 超过比例：用同一任务的全量分数分布（API-18）算相对位置，旧任务无存档则不显示
                 const beat = dist?.scores?.length
                   ? Math.round(100 * dist.scores.filter((s) => s < item.score).length / dist.scores.length)
                   : null
+                const cal = calOf(item.score)
+                const shown = cal != null ? cal : Math.round(item.score * 100)
                 return (
                   <div key={item.rank} className="rank-card">
                     <div className={`rank-num ${item.rank <= 3 ? `top${item.rank}` : ''}`}>{item.rank}</div>
@@ -259,13 +289,21 @@ export default function Match() {
                       </div>
                     </div>
                     <div className="score-wrap">
-                      <div className="score-num">{Math.round(item.score * 100)}</div>
-                      <div className="muted">匹配度 / 100</div>
-                      <div className="bar"><div style={{ width: `${Math.round(item.score * 100)}%` }} /></div>
+                      <div className="score-num">{shown}</div>
+                      <div className="muted">
+                        校准分 / 100
+                        {cal != null && (
+                          <span title={calTip} style={{ cursor: 'help', marginLeft: 4 }}>ⓘ</span>
+                        )}
+                      </div>
+                      <div className="bar"><div style={{ width: `${shown}%` }} /></div>
                       {item.score_detail && (
                         <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>
-                          语义 {item.score_detail.semantic} · 词面 {item.score_detail.lexical} · 权重 α {item.score_detail.alpha}
+                          原始融合分 {item.score} · 语义 {item.score_detail.semantic} · 词面 {item.score_detail.lexical} · 权重 α {item.score_detail.alpha}
                         </div>
+                      )}
+                      {!item.score_detail && (
+                        <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>原始融合分 {item.score}</div>
                       )}
                       {beat != null && (
                         <div className="muted" style={{ fontSize: 12 }}>超过全库 {beat}% 候选人</div>
