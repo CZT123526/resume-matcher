@@ -60,5 +60,9 @@ export const getMatchResults = (id) => request(`/match-tasks/${id}/results`)
 export const getMatchScoreDistribution = (id) =>
   request(`/match-tasks/${id}/score_distribution`)
 
+// ---------- 主页 ----------
+// 主页总览（API-19，T48）：库规模 + 两类排名，口径说明见 docs/backend-api.md §6
+export const getHomeStats = () => request('/stats/home')
+
 // ---------- 模型 ----------
 export const getModelInfo = () => request('/model/info')

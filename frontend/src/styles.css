@@ -320,3 +320,12 @@ body:has(.modal-overlay) { overflow: hidden; }
   .rank-card { flex-direction: column; }
   .score-wrap { width: 100%; }
 }
+
+/* ---------- 14. 主页统计卡（T48） ---------- */
+.stat-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+.stat-card { margin-bottom: 18px; }
+.stat-num { font-size: 30px; font-weight: 700; line-height: 1.2; color: var(--text); }
+.stat-label { color: var(--text-2); font-size: 13px; font-weight: 500; margin-top: 2px; }
+.stat-sub { color: var(--muted); font-size: 12px; line-height: 1.6; margin-top: 8px; }
+@media (max-width: 960px) { .stat-row { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 520px) { .stat-row { grid-template-columns: 1fr; } }

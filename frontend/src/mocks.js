@@ -71,6 +71,21 @@ const fixtures = {
       },
     ],
   }),
+  'GET /stats/home': async () => ({
+    resumes: { all: 3, business: 1, rewrite: 1, semispec: 0, fresh: 1, parsed_done: 3 },
+    jd_count: 2,
+    jd_covered: 1,
+    match_done: 1,
+    title_kinds: 2,
+    title_resumes: 2,
+    title_rank: [
+      { title: '后端开发工程师', n: 42 },
+      { title: '算法工程师', n: 39 },
+    ],
+    jd_rank: [
+      { jd_id: 1, title: 'Python后端工程师', recalled: 12, task_count: 3, last_run_at: '2026-10-10T12:00:00' },
+    ],
+  }),
   'GET /model/info': async () => ({
     model_name: 'bert-base-chinese（语义编码）；NER=规则兜底',
     version: 'v0-rules',
