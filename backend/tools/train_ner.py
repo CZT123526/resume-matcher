@@ -188,7 +188,7 @@ def train() -> Path:
     model.save_pretrained(MODEL_DIR)
     tokenizer.save_pretrained(MODEL_DIR)
     (MODEL_DIR / "metrics.json").write_text(json.dumps({
-        "version": "v1",
+        "version": os.getenv("NER_MODEL_VERSION", "v1"),
         "f1": float(metrics.get("eval_f1", 0.0)),
         "precision": float(metrics.get("eval_precision", 0.0)),
         "recall": float(metrics.get("eval_recall", 0.0)),

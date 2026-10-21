@@ -4,20 +4,24 @@ import { getModelInfo } from '../api'
 // 图表懒加载（T40）：echarts 只在本页按需拉取，主包保持轻量
 const Chart = lazy(() => import('../components/Chart'))
 
-// 冻结评测口径（v4 主测试集 8142 对/46 查询，NDCG@10；T39 自适应 α 为三池验证后默认值）。
+// 冻结评测口径（v4 主测试集 8142 对 / 46 查询，排序得分 NDCG@10；T39 自动权重为三池验证后默认值）。
 // 数据来源：docs/eval/eval_report.json、adaptive_alpha_report.json、semispec_report.json、
-// stress_report.json（2026-10-19 冻结）。前端只做展示，评测一律以 docs/eval/ 产物为准。
-// 展示纪律：界面文案不写括号注解——归类信息用「·」分隔进条形图标签，细节进脚注分句（用户要求）
+// stress_report.json、fresh_report.json（2026-10-19/21 冻结）。前端只做展示，评测以 docs/eval/ 产物为准。
+// 展示纪律：界面文案不写括号注解；页面表达中文先行、少英文少符号，专业术语对照统一收进脚注（用户要求）
 const EVAL_MAIN = [
-  { name: '对比微调 bert_pair *', v: 1.0, kind: 'ablation' },
-  { name: 'TF-IDF · 词面对照', v: 0.9898, kind: 'baseline' },
-  { name: 'DeepSeek · 大模型对照', v: 0.9783, kind: 'baseline' },
-  { name: '本文方法 · 自适应 α', v: 0.9522, kind: 'ours' },
-  { name: '本文方法 · 固定 α=0.7', v: 0.9305, kind: 'ours' },
-  { name: '纯语义 DAPT · 消融', v: 0.7483, kind: 'ablation' },
-  { name: '底座 BERT · 消融', v: 0.6968, kind: 'ablation' },
+  { name: '对比微调模型 *', v: 1.0, kind: 'ablation' },
+  { name: '词面检索对照', v: 0.9898, kind: 'baseline' },
+  { name: '大模型对照', v: 0.9783, kind: 'baseline' },
+  { name: '本文方法 · 自动权重', v: 0.9522, kind: 'ours' },
+  { name: '本文方法 · 固定权重', v: 0.9305, kind: 'ours' },
+  { name: '纯语义 · 领域预训练', v: 0.7483, kind: 'ablation' },
+  { name: '纯语义 · 原始底座', v: 0.6968, kind: 'ablation' },
 ]
 const KIND_COLOR = { ours: '#2563eb', baseline: '#64748b', ablation: '#cbd5e1' }
+
+// 模型标识 → 中文展示名（标识符本身是训练产物名，不修改数据）
+const MODEL_DISPLAY = { 'bert-base-chinese-ner': '中文 BERT 实体抽取模型' }
+const VERSION_DISPLAY = { v1: '第一轮', v2: '第二轮' }
 
 // ECharts 横向条形图：本文方法高亮蓝，对照灰、消融浅灰，直读差距
 function buildEvalOption() {
@@ -41,7 +45,7 @@ function buildEvalOption() {
       data: rows.map((r) => ({
         value: r.v,
         itemStyle: { color: KIND_COLOR[r.kind], borderRadius: [0, 4, 4, 0] },
-        label: { show: true, position: 'right', color: '#374151', fontSize: 12, formatter: ({ value }) => value.toFixed(4) },
+        label: { show: true, position: 'right', color: '#374151', fontSize: 12, formatter: ({ value }) => value.toFixed(2) },
       })),
     }],
   }
@@ -73,34 +77,36 @@ export default function ModelInfo() {
         <h3>模型状态</h3>
         <table>
           <tbody>
-            <tr><td>模型</td><td>{info.model_name}</td></tr>
-            <tr><td>版本</td><td>{info.version}</td></tr>
+            <tr><td>模型</td><td>{MODEL_DISPLAY[info.model_name] || info.model_name}</td></tr>
+            <tr><td>训练轮次</td><td>{VERSION_DISPLAY[info.version] || info.version}</td></tr>
             <tr>
-              <td>实体级 F1</td>
-              <td>{info.f1 > 0 ? `${(info.f1 * 100).toFixed(1)}%` : '未微调 · 训练完成后自动展示'}</td>
+              <td>实体抽取得分</td>
+              <td>{info.f1 > 0 ? `${(info.f1 * 100).toFixed(1)}%` : '模型训练完成后自动展示'}</td>
             </tr>
-            <tr><td>训练样本数</td><td>{info.train_samples || '—'}</td></tr>
-            <tr><td>更新时间</td><td>{info.updated_at || '—'}</td></tr>
+            <tr><td>训练语料</td><td>{info.train_samples ? `${info.train_samples} 句` : '—'}</td></tr>
+            <tr><td>更新时间</td><td>{(info.updated_at || '—').slice(0, 10)}</td></tr>
           </tbody>
         </table>
         <p className="muted" style={{ marginBottom: 0 }}>
-          说明：实体抽取 = 微调 BERT + 规则锚定兜底——显式字段行强锚定，来源标注 bert/rule；
-          语义匹配 = DAPT 领域预训练编码 + 关键词重排；自适应 α 默认开启，词面证据稀薄时自动退向纯语义。
+          说明：简历解析由微调模型与规则双路合作——原文里明确写了字段行的直接采信，模型只挑有把握的词，没把握宁可漏掉也不乱标。
+          岗位匹配先用领域语料继续预训练的语义模型打基础分，再用关键词核对做修正；两组证据的配比按岗位与简历的重合程度自动调节。
         </p>
       </div>
 
       <div className="card">
-        <h3>评测成绩单 · 冻结口径 NDCG@10</h3>
+        <h3>评测成绩单 · 排序得分，满分 1 分</h3>
         <div className="muted" style={{ marginBottom: 8 }}>
-          主测试集：金标准 8142 对 / 46 查询 / 1062 简历 / 55 JD；蓝色为本文方法，深灰为外部对照，浅灰为消融
+          主测试集：1062 份简历、55 个岗位、46 条查询、金标准 8142 对；蓝色是本系统方法，深灰是外部对照，浅灰是拆解验证
         </div>
         <Suspense fallback={<div className="skeleton" style={{ height: 300 }} />}>
           <Chart option={buildEvalOption()} height={300} />
         </Suspense>
         <p className="muted" style={{ marginBottom: 0 }}>
-          * 转导口径：角色标签与测试集同源，仅作消融展示；留出法 0.9929，背题 &lt;1pp，泛化已实证。
-          两批加试简历：改写简历上 bert_pair 0.9799 首超 TF-IDF 0.9633；半规范简历上语义编码 DAPT 0.9807——
-          伤系统的是内容缺失而非排版花哨。数字一律以 docs/eval/ 下 JSON 报告为准。
+          * 对比微调的满分是同类考卷上的同源成绩，仅作参照：把一成半简历完全藏起来不让模型见过，仍得 0.99，与满分差距不到一个百分点，说明不是死记硬背。
+          三批加试进一步验证：改写卷把简历正文全部重写，对比微调 0.98 反超词面检索 0.96；半规范卷只换排版不换内容，语义编码 0.98——伤系统的是内容缺失，不是排版花哨；
+          外校卷用 10 种全新岗位、50 份逐份手写的简历，对比微调仍有 0.97。
+          术语对照：词面检索即 TF-IDF、大模型对照即 DeepSeek、对比微调即 bert_pair、领域预训练即 DAPT、原始底座即 BERT、排序得分即 NDCG@10、实体抽取得分即 F1。
+          数值以项目评测报告存档为准，此处保留两位小数。
         </p>
       </div>
     </>
