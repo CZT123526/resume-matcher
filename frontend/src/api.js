@@ -6,7 +6,15 @@ const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true'
 
 async function request(path, options = {}) {
   if (USE_MOCK) return mockFor(path, options)
-  const res = await fetch(`/api${path}`, options)
+  // C8 挑刺修复：裸 fetch 无超时，后端挂起时页面永远转圈——默认 30s 强制中断并报错
+  const timeoutMs = options.timeoutMs ?? 30000
+  let res
+  try {
+    res = await fetch(`/api${path}`, { ...options, signal: AbortSignal.timeout(timeoutMs) })
+  } catch (e) {
+    if (e?.name === 'TimeoutError') throw new Error(`请求超时（${Math.round(timeoutMs / 1000)} 秒），请检查后端服务后重试`)
+    throw e
+  }
   const body = await res.json().catch(() => ({}))
   if (!res.ok || body.code !== 0) {
     throw new Error(body.message || `HTTP ${res.status}`)
@@ -54,6 +62,9 @@ export const deleteJd = (id) => request(`/jds/${id}`, { method: 'DELETE' })
 // ---------- 匹配 ----------
 export const createMatchTask = (jdId, topK = 10) =>
   request('/match-tasks', jsonInit('POST', { jd_id: jdId, top_k: topK }))
+// 历史任务列表（A4 挑刺修复）：结果按 task_id 完整存档，界面从此有入口再打开
+export const listMatchTasks = (page = 1, pageSize = 10) =>
+  request(`/match-tasks?page=${page}&page_size=${pageSize}`)
 export const getMatchTask = (id) => request(`/match-tasks/${id}`)
 export const getMatchResults = (id) => request(`/match-tasks/${id}/results`)
 // 全量融合分分布（API-18，T40）：分布图数据源，历史任务返回空列表

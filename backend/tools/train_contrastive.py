@@ -77,8 +77,11 @@ def log(msg: str) -> None:
     print(f"[{time.strftime('%H:%M:%S')}] {msg}", flush=True)
 
 
-def load_pairs() -> list[tuple[str, str]]:
-    """（简历结构化文本, 角色训练JD）正对；仅收文件名可判角色的 done 简历（免费标签）"""
+def load_pairs() -> tuple[list[tuple[str, str]], list[int]]:
+    """（简历结构化文本, 角色训练JD）正对；仅收文件名可判角色的 done 简历（免费标签）。
+
+    B8 挑刺修复：返回 (pairs, rids)——rid 清单随模型落 manifest，训练池从此可核对。
+    """
     from app.svc.vectors import _current_resume_data, structured_text
 
     data = _current_resume_data()
@@ -91,7 +94,7 @@ def load_pairs() -> list[tuple[str, str]]:
     finally:
         conn.close()
 
-    pairs, skipped = [], 0
+    pairs, rids, skipped = [], [], 0
     for rid, item in data.items():
         m = _ROLE_RE.match(files.get(rid, ""))
         role = m.group(1) if m else None
@@ -99,8 +102,52 @@ def load_pairs() -> list[tuple[str, str]]:
             skipped += 1
             continue
         pairs.append((structured_text(item), ROLE_JDS[role]))
+        rids.append(rid)
     log(f"训练正对 {len(pairs)} 条（非角色简历跳过 {skipped}）")
-    return pairs
+    return pairs, rids
+
+
+MANIFEST_NAME = "train_manifest.json"
+
+
+def check_pool_manifest(out_dir: Path, n_pairs: int) -> None:
+    """训练前核对训练池是否相对上次训练发生漂移（B8 挑刺修复）。
+
+    load_pairs 从全库现抽正对，语料增长会静默改变训练数据（实测 978→1322 对，
+    压力/半规范考卷简历混入）。与 manifest 记录不一致时打醒目警告：不阻断
+    （语料增长后重训本身合法），但重训后再跑 stress/semispec 考卷评测，
+    "考卷生成晚于训练=跨语料泛化" 的前提即告失效，必须重新核对结论口径。
+    """
+    mf = out_dir / MANIFEST_NAME
+    if not mf.exists():
+        log(f"⚠ {out_dir / MANIFEST_NAME} 不存在，无法核对训练池漂移（首次训练可忽略）")
+        return
+    try:
+        man = json.loads(mf.read_text(encoding="utf-8"))
+    except Exception as exc:
+        log(f"⚠ train_manifest.json 读取失败（{exc}），跳过核对")
+        return
+    old_n = man.get("pair_count")
+    if old_n != n_pairs:
+        log("⚠⚠ 训练池漂移：本次抽到 "
+            f"{n_pairs} 对，上次训练（{man.get('trained_at', '?')}）为 {old_n} 对。"
+            "若重训后重跑 stress/semispec/fresh 考卷评测，'模型未见过考卷'的前提不再成立，"
+            "相关'跨语料泛化'结论需重新核对口径！")
+    else:
+        log(f"训练池核对一致：{n_pairs} 对（与 {man.get('trained_at', '?')} 的记录相同）")
+
+
+def write_pool_manifest(out_dir: Path, rids: list[int], n_pairs: int) -> None:
+    """训练完成后落训练池 manifest（B8）：对数 + rid 清单，供下次重训前核对。"""
+    (out_dir / MANIFEST_NAME).write_text(
+        json.dumps({
+            "pair_count": n_pairs,
+            "resume_ids": sorted(rids),
+            "trained_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "note": "load_pairs 从全库现抽；重训前 check_pool_manifest 会比对对数防静默漂移",
+        }, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
 
 
 def mean_pool(last_hidden: Tensor, mask: Tensor) -> Tensor:
@@ -202,7 +249,8 @@ def main() -> int:
     random.seed(args.seed)
     device = "cpu"
 
-    pairs = load_pairs()
+    pairs, rids = load_pairs()
+    check_pool_manifest(Path(args.out), len(pairs))
     rng = random.Random(args.seed)
     idx = list(range(len(pairs)))
     rng.shuffle(idx)
@@ -247,7 +295,8 @@ def main() -> int:
         "note": "批内负样本；批内角色互不重复防假负例；训练JD为35角色独立撰写，未复制评测JD文案",
     }
     (out / "metrics.json").write_text(json.dumps(metrics, ensure_ascii=False, indent=2), encoding="utf-8")
-    log(f"完成：dev Recall@1 {base_recall:.4f} → {final_recall:.4f}，模型已存 {out}/")
+    write_pool_manifest(out, rids, len(pairs))
+    log(f"完成：dev Recall@1 {base_recall:.4f} → {final_recall:.4f}，模型已存 {out}/（含训练池 manifest）")
     return 0
 
 

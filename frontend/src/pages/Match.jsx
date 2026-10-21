@@ -1,5 +1,8 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
-import { listJds, createMatchTask, getMatchTask, getMatchResults, getMatchScoreDistribution } from '../api'
+import {
+  listJds, createMatchTask, getMatchTask, getMatchResults, getMatchScoreDistribution,
+  listMatchTasks,
+} from '../api'
 import ResumeDetailModal from '../components/ResumeDetailModal'
 
 // 图表懒加载（T40）：echarts 只在出结果后按需拉取，主包保持轻量
@@ -94,12 +97,15 @@ export default function Match() {
   const [dist, setDist] = useState(null)      // 全量分数分布（API-18，T40）
   const [binSel, setBinSel] = useState(null)  // 点选的分布柱：{label, count, list}，null=展示默认 Top-K
   const [previewId, setPreviewId] = useState(null)  // 简历预览弹窗（与简历页共用组件）
+  const [history, setHistory] = useState([])        // 历史任务面板（A4）：刷新后从这里回到结果
   const [msg, setMsg] = useState('')
   const [busy, setBusy] = useState(false)
   const timerRef = useRef(null)
 
   // 校准分（T46）：min-max 归一化只动展示——把本轮全量融合分线性拉伸到 0~100，
-  // 最低 0 最高 100。排序、存档、评测口径全部仍用原始融合分；历史任务无存档则退回原始分
+  // 最低 0 最高 100。排序、存档、评测口径全部仍用原始融合分；历史任务无存档则退回原始分。
+  // B7 已知边界：融合分头部普遍挤在 0.99+，Top-K 常常并列 100——界面如实提示并列，
+  // 差距看原始融合分与名次
   const calRange = dist?.scores?.length
     ? (() => {
         let mn = Infinity
@@ -118,15 +124,44 @@ export default function Match() {
       : 1) * 100)
   }
   const calTip = calRange
-    ? `校准分：把本轮 ${dist.n_candidates} 份候选人的融合分做 min-max 归一化，线性拉伸到 0 到 100，最低 0 分、最高 100 分，只用于横向对比本轮内的相对高低；推荐排序与原始融合分不受影响`
+    ? `校准分：把本轮 ${dist.n_candidates} 份候选人的融合分做 min-max 归一化，线性拉伸到 0 到 100，最低 0 分、最高 100 分，只用于横向对比本轮内的相对高低；推荐排序与原始融合分不受影响。头部候选人分数过近时校准分会并列 100，此时差距请看原始融合分`
     : ''
 
+  // JD 下拉要岗位全量选项（B3 挑刺修复：后端单页上限 100，此前第 101 条起永远不可选）——循环拉到拉平
+  const fetchAllJds = async () => {
+    const first = await listJds(1, 100)
+    const items = [...(first.items || [])]
+    const pages = Math.ceil((first.total || items.length) / 100)
+    for (let p = 2; p <= pages; p++) {
+      items.push(...(await listJds(p, 100)).items)
+    }
+    return items
+  }
+
+  const loadHistory = () => {
+    listMatchTasks(1, 8).then((d) => setHistory(d.items || [])).catch(() => {})
+  }
+
+  // 打开一个任务的结果（轮询完成与历史面板点开共用同一入口）
+  const openResults = (taskId) => {
+    setBinSel(null)
+    getMatchResults(taskId)
+      .then((r) => {
+        setResults(r)
+        // 分布图失败不挡结果列表：历史任务（无存档）返回空列表，静默隐藏
+        getMatchScoreDistribution(taskId)
+          .then((d) => setDist(d.scores?.length ? d : null))
+          .catch(() => setDist(null))
+      })
+      .catch((e) => setMsg(`读取结果失败：${e.message}`))
+  }
+
   useEffect(() => {
-    // 下拉是岗位全量选项，显式拉到后端单页上限 100（列表页的分页默认值 20 与此无关）
-    listJds(1, 100).then((d) => {
-      setJds(d.items || [])
-      if (d.items?.length) setJdId(String(d.items[0].jd_id))
+    fetchAllJds().then((items) => {
+      setJds(items)
+      if (items.length) setJdId(String(items[0].jd_id))
     }).catch((e) => setMsg(`加载 JD 失败：${e.message}`))
+    loadHistory()
     return () => clearInterval(timerRef.current)
   }, [])
 
@@ -140,11 +175,8 @@ export default function Match() {
         setTask(t)
         if (t.status === 'done') {
           clearInterval(timerRef.current)
-          setResults(await getMatchResults(taskId))
-          // 分布图失败不挡结果列表：历史任务（无存档）返回空列表，静默隐藏
-          getMatchScoreDistribution(taskId)
-            .then((d) => setDist(d.scores?.length ? d : null))
-            .catch(() => setDist(null))
+          openResults(taskId)
+          loadHistory()
         } else if (t.status === 'failed') {
           clearInterval(timerRef.current)
           setMsg(`任务失败：${t.error || '未知原因'}`)
@@ -192,6 +224,21 @@ export default function Match() {
     }
   }
 
+  // 历史面板点开一个任务（A4）：done 直接回结果，failed 带出当时的原因
+  const openHistoryTask = (h) => {
+    clearInterval(timerRef.current)
+    setMsg('')
+    setTask({ task_id: h.task_id, status: h.status, progress: h.progress })
+    if (h.status === 'done') {
+      openResults(h.task_id)
+    } else {
+      setResults(null)
+      setDist(null)
+      setBinSel(null)
+      if (h.status === 'failed') setMsg(`历史任务 ${h.task_id} 为失败状态`)
+    }
+  }
+
   return (
     <div>
       <div className="card">
@@ -214,6 +261,33 @@ export default function Match() {
           </div>
         )}
       </div>
+
+      {history.length > 0 && (
+        <div className="card">
+          <h3>历史任务 · 刷新后从这里回到结果</h3>
+          <div className="muted" style={{ marginBottom: 8 }}>
+            匹配结果按任务完整存档，点击任意历史任务重新打开其排名、分布与证据链
+          </div>
+          <table>
+            <thead>
+              <tr><th>任务</th><th>岗位</th><th>召回</th><th>状态</th><th>结果</th><th>发起时间</th><th>操作</th></tr>
+            </thead>
+            <tbody>
+              {history.map((h) => (
+                <tr key={h.task_id} className="clickable" onClick={() => openHistoryTask(h)}>
+                  <td>{h.task_id}</td>
+                  <td>{h.jd_title}</td>
+                  <td>Top-{h.top_k}</td>
+                  <td>{h.status === 'done' ? '已完成' : h.status === 'failed' ? '失败' : h.status === 'running' ? '进行中' : '排队中'}</td>
+                  <td>{h.n_results} 条</td>
+                  <td className="muted">{(h.created_at || '').replace('T', ' ').slice(0, 19)}</td>
+                  <td>{h.status === 'done' && <button className="btn ghost">查看结果</button>}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {dist && results && results.items.length > 0 && (
         <div className="card">
@@ -274,6 +348,14 @@ export default function Match() {
               <div className="muted" style={{ marginBottom: 8 }}>
                 展示用校准分：把本轮融合分线性拉伸到 0 到 100，同领域文本原始分普遍偏高，拉伸后更容易看出差距 · 鼠标停在 ⓘ 上看算法说明
               </div>
+              {(() => {
+                const sat = results.items.filter((it) => calOf(it.score) === 100).length
+                return sat >= 3 ? (
+                  <div className="warn-text" style={{ marginBottom: 8 }}>
+                    本轮前 {sat} 名校准分并列 100——头部融合分差距已小于校准分能表达的精度，比差距请看各卡下方的原始融合分与名次
+                  </div>
+                ) : null
+              })()}
               {results.items.map((item) => {
                 // 超过比例：用同一任务的全量分数分布（API-18）算相对位置，旧任务无存档则不显示
                 const beat = dist?.scores?.length

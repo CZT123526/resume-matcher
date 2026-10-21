@@ -27,25 +27,30 @@ def compute_evidence(jd_reqs: dict, resume_entities: list[dict]) -> list[str]:
         else:
             evidence.append(f"不符合：{s}")
 
-    # 2. 学历：认不出就不出现本行（T49 同口径，不再有「未识别」占位）
+    # 2. 学历：任一侧认不出（不在枚举表）就不出现本行（T49 同口径；C5 挑刺修复——
+    #    此前 JD 侧枚举外值会走 else 输出「不符合：学历 本科<不限」式荒谬红标）
     jd_degree = jd_reqs.get("degree")
     resume_degree = (by_key.get("degree") or [None])[0]
-    if jd_degree is not None and resume_degree is not None:
-        jd_rank = _DEGREE_RANK.get(jd_degree, -1)
-        r_rank = _DEGREE_RANK.get(resume_degree, -1)
-        if r_rank >= jd_rank >= 0:
+    jd_rank = _DEGREE_RANK.get(jd_degree or "", -1)
+    r_rank = _DEGREE_RANK.get(resume_degree or "", -1)
+    if jd_rank >= 0 and r_rank >= 0:
+        if r_rank >= jd_rank:
             evidence.append(f"符合：学历 {resume_degree}≥{jd_degree}")
         else:
             evidence.append(f"不符合：学历 {resume_degree}<{jd_degree}")
 
     # 3. 年限：任一侧认不出就不出现本行（T49 用户裁决——
-    #    库内简历原文 0/1372 有显式年限句式，占位行没有信息量）
+    #    库内简历原文 0/1372 有显式年限句式，占位行没有信息量）。
+    #    C5 挑刺修复：多段经历取**最大**年限（最能代表资历），此前取第一个实体，
+    #    方向可能选错
     jd_years = jd_reqs.get("min_years")
-    resume_years_raw = (by_key.get("years") or [None])[0]
-    try:
-        resume_years = int(str(resume_years_raw)) if resume_years_raw is not None else None
-    except ValueError:
-        resume_years = None
+    year_vals = []
+    for v in by_key.get("years", []):
+        try:
+            year_vals.append(int(str(v)))
+        except ValueError:
+            continue
+    resume_years = max(year_vals) if year_vals else None
     if jd_years is not None and resume_years is not None:
         if resume_years >= jd_years:
             evidence.append(f"符合：经验 {resume_years}年≥{jd_years}年")

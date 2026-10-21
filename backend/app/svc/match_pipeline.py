@@ -1,6 +1,7 @@
 """匹配任务流水线（后台任务）：缓存就绪 → JD 编码 → 重排融合 → 证据链 → 落库。"""
 import json
 import logging
+import os
 
 import numpy as np
 
@@ -13,6 +14,15 @@ from app.svc.ranking import hybrid_scores
 from app.svc.vectors import _current_resume_data, ensure_cache, load_query_encoder, structured_text
 
 logger = logging.getLogger(__name__)
+
+
+def _fuse_rounded(sem: float, lex: float, alpha: float) -> float:
+    """存档口径的融合分（C10 挑刺修复）：分量先按契约舍入 4 位、α 同精度，
+    再融合舍入——保证从存档的 detail_json（semantic/lexical/alpha）能**精确**
+    复算出存档 score。此前 score 从全精度融合值舍入，验算恒差 1e-4（实测
+    400 行历史结果 82 行对不上）。排序仍在全精度 final 上做，位级差不会改变名次。"""
+    a = round(float(alpha), 4)
+    return round(a * round(float(sem), 4) + (1 - a) * round(float(lex), 4), 4)
 
 
 def jd_encode_text(title: str, req: dict, content: str) -> str:
@@ -41,7 +51,12 @@ def run_match_pipeline(task_id: int, jd_id: int, top_k: int) -> None:
 
     conn = get_db()
     try:
-        _set(conn, "running", 5)
+        # 认领任务：盖属主进程 pid（B2）——另一进程启动清扫时探活跳过，不再误杀
+        conn.execute(
+            "UPDATE match_tasks SET status='running', progress=5, owner_pid=? WHERE id=?",
+            (os.getpid(), task_id),
+        )
+        conn.commit()
 
         jd = conn.execute(
             "SELECT id, title, content, req_json FROM jds WHERE id=?", (jd_id,)
@@ -87,11 +102,14 @@ def run_match_pipeline(task_id: int, jd_id: int, top_k: int) -> None:
             logger.info("自适应 α：coverage=%.3f → α_eff=%.3f（base=%.2f）",
                         coverage_from_scores(lex_scores.values()), alpha, settings.MATCH_ALPHA)
         # T40：Top-K 与全量分布同源——hybrid_scores 一次融合，排名就地截断，
-        # 全量分数降序存档 match_score_dist（分布图接口读它，不二次计算）
+        # 全量分数降序存档 match_score_dist（分布图接口读它，不二次计算）。
+        # 存档分数一律走 _fuse_rounded（C10）：排序看全精度 final，落库用舍入分量
+        # 复算值——两处同一函数，不会出现结果卡与分布图对不上
         final, bert_arr, lex_arr, order = hybrid_scores(jd_vec, lex_scores, alpha=alpha)
+        arch = [_fuse_rounded(b, l, alpha) for b, l in zip(bert_arr, lex_arr)]
         top = np.argsort(-final)[: max(int(top_k), 0)]
         ranked = [
-            {"resume_id": int(order[i]), "score": round(float(final[i]), 4),
+            {"resume_id": int(order[i]), "score": arch[i],
              "semantic": round(float(bert_arr[i]), 4), "lexical": round(float(lex_arr[i]), 4)}
             for i in top
         ]
@@ -103,9 +121,9 @@ def run_match_pipeline(task_id: int, jd_id: int, top_k: int) -> None:
         ).fetchall()
         names = {int(r["resume_id"]): r["field_value"] for r in name_rows}
         dist_items = sorted(
-            ({"resume_id": int(rid), "score": round(float(s), 4),
+            ({"resume_id": int(rid), "score": arch[i],
               "name": names.get(int(rid), f"候选人{rid}")}
-             for rid, s in zip(order, final)),
+             for i, rid in enumerate(order)),
             key=lambda x: x["score"], reverse=True,
         )
         dist_scores = [x["score"] for x in dist_items]

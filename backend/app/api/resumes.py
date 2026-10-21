@@ -18,31 +18,28 @@ router = APIRouter(prefix="/api/resumes", tags=["resumes"])
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # 契约：≤10MB
 SUPPORTED_EXTS = {".pdf", ".docx"}
 
-# 语料批次时间窗（2026-10-19 两批评测加试简历的批量导入区间，T37/T38）。
-# 为什么用时间窗：改写简历 286~341 字、半规范简历 148~322 字，字数区间重叠分不开；
-# 两个时间窗互不重叠且各只含一次批量导入（160/100 份恰好对账）。窗口外的，
-# 含此后新上传的简历，一律归正式简历。
-CORPUS_WINDOWS = {
-    "rewrite": ("2026-10-19 13:30:00", "2026-10-19 14:30:00"),   # T37 正文避词改写简历 160 份
-    "semispec": ("2026-10-19 15:00:00", "2026-10-19 16:00:00"),  # T38 半规范排版简历 100 份
-    "fresh": ("2026-10-21 00:00:00", "2026-10-22 00:00:00"),     # T46 外校卷全新岗位简历 50 份
-}
+# 语料来源（T53 挑刺修复）：上传时显式落列，过滤按列判——不再用 created_at
+# 硬编码时间窗（窗口一过口径静默漂移：今天真实上传会被当成外校卷）。
+# 历史批量导入区间由 init_db 一次性回填（db.LEGACY_CORPUS_WINDOWS），此处不掺和日期。
+_CORPUS_COL = "COALESCE(source, 'business')"  # 加列前的存量行由回填兜底，NULL 双保险按业务简历
 
 
 def _corpus_conds(corpus: str) -> list[str]:
-    """corpus 过滤条件（created_at 为 'YYYY-MM-DD HH:MM:SS' 文本，字典序即时间序；常量拼接无注入面）"""
+    """corpus 过滤条件（按 resumes.source 列判；常量拼接无注入面）"""
     if corpus == "all":
         return []
-    if corpus == "business":
-        ranges = [f"(created_at >= '{s}' AND created_at < '{e}')" for s, e in CORPUS_WINDOWS.values()]
-        return [f"NOT ({' OR '.join(ranges)})"]
-    start, end = CORPUS_WINDOWS[corpus]
-    return [f"(created_at >= '{start}' AND created_at < '{end}')"]
+    return [f"{_CORPUS_COL}='{corpus}'"]
 
 
 @router.post("/upload", status_code=202)
 async def upload_resume(background: BackgroundTasks, file: UploadFile = File(...)):
-    """上传简历（202 已受理），后台异步解析，前端轮询 GET /api/resumes/{id}"""
+    """上传简历（202 已受理），后台异步解析，前端轮询 GET /api/resumes/{id}。
+
+    B4 挑刺修复：先写临时文件、成功后INSERT 再原子改名——任何一步失败都
+    回滚（删临时文件/删行），不再出现"库里有记录、原件不存在"的半截数据。
+    """
+    import os
+
     filename = file.filename or ""
     ext = Path(filename).suffix.lower()
     if ext not in SUPPORTED_EXTS:
@@ -54,21 +51,40 @@ async def upload_resume(background: BackgroundTasks, file: UploadFile = File(...
     if len(data) > MAX_UPLOAD_BYTES:
         raise AppError(ErrorCode.FILE_TOO_LARGE, "文件超过 10MB 上限")
 
-    conn = get_db()
+    dest_dir = upload_dir()
+    tmp_path = dest_dir / f".upload-tmp-{os.getpid()}-{Path(filename).name}"
+    final_path = None
+    resume_id = None
     try:
-        cur = conn.execute(
-            "INSERT INTO resumes(file_name, file_type, file_size, parse_status) VALUES(?,?,?,'pending')",
-            (Path(filename).name, ext.lstrip("."), len(data)),
-        )
-        resume_id = cur.lastrowid
-        conn.commit()
-    finally:
-        conn.close()
-
-    # 原件落盘（以 resume_id 命名防重名），供 GET /{id}/file 查看原件
-    (upload_dir() / f"{resume_id}{ext}").write_bytes(data)
-
-    background.add_task(run_parse_pipeline, resume_id, data, Path(filename).name)
+        tmp_path.write_bytes(data)  # 先落盘：写失败在这里就抛，库里不留行
+        conn = get_db()
+        try:
+            cur = conn.execute(
+                "INSERT INTO resumes(file_name, file_type, file_size, parse_status, source, owner_pid) "
+                "VALUES(?,?,?,'pending','business',?)",
+                (Path(filename).name, ext.lstrip("."), len(data), os.getpid()),
+            )
+            resume_id = cur.lastrowid
+            conn.commit()
+        finally:
+            conn.close()
+        # 原件以 resume_id 命名防重名（同盘 rename 原子），供 GET /{id}/file 查看原件
+        final_path = dest_dir / f"{resume_id}{ext}"
+        os.replace(tmp_path, final_path)
+        background.add_task(run_parse_pipeline, resume_id, data, Path(filename).name)
+    except Exception:
+        # 补偿清理：半截状态不留库不留盘
+        tmp_path.unlink(missing_ok=True)
+        if final_path is not None:
+            final_path.unlink(missing_ok=True)
+        if resume_id is not None:
+            conn = get_db()
+            try:
+                conn.execute("DELETE FROM resumes WHERE id=?", (resume_id,))
+                conn.commit()
+            finally:
+                conn.close()
+        raise
     return ok({"resume_id": resume_id, "file_name": Path(filename).name, "parse_status": "pending"})
 
 
@@ -314,7 +330,16 @@ def download_resume_file(resume_id: int):
 
 @router.delete("/{resume_id}")
 def delete_resume(resume_id: int):
-    """删除简历（P1）：实体随 ON DELETE CASCADE 级联清除；向量缓存由匹配侧按 id 集比对自动重建"""
+    """删除简历（P1）：实体与历史结果随 ON DELETE CASCADE 级联清除；
+    向量缓存由匹配侧按 id 集比对自动重建。
+
+    A1 挑刺修复：match_score_dist 的候选人快照（ids_json）同步摘除该简历——
+    此前结果行级联消失、分布快照却永生，同一次删除出现"历史 9 行 / 分布仍 1372 人 /
+    点柱反查已删简历 404"的三重自相矛盾。现在两条数据路径同一口径：人删了，
+    分布里也摘掉（n_candidates、scores_json、ids_json 同步收缩）。
+    """
+    import json as _json
+
     conn = get_db()
     try:
         exists = conn.execute("SELECT 1 FROM resumes WHERE id=?", (resume_id,)).fetchone()
@@ -325,6 +350,21 @@ def delete_resume(resume_id: int):
         conn.execute(
             "DELETE FROM resume_search WHERE CAST(resume_id AS INTEGER)=?", (resume_id,)
         )
+        # 分布快照摘除该候选人（scores 与 items 严格同序，按 items 过滤后同步重建两列）
+        for row in conn.execute(
+            "SELECT task_id, n_candidates, scores_json, ids_json FROM match_score_dist"
+        ).fetchall():
+            items = _json.loads(row["ids_json"]) if row["ids_json"] else []
+            kept = [x for x in items if int(x.get("resume_id", -1)) != int(resume_id)]
+            if len(kept) == len(items):
+                continue
+            conn.execute(
+                "UPDATE match_score_dist SET n_candidates=?, scores_json=?, ids_json=? WHERE task_id=?",
+                (len(kept),
+                 _json.dumps([x["score"] for x in kept]),
+                 _json.dumps(kept, ensure_ascii=False),
+                 row["task_id"]),
+            )
         conn.commit()
     finally:
         conn.close()

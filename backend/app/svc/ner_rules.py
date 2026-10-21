@@ -128,14 +128,17 @@ def normalize_value(field_key: str, value: str) -> str | None:
 def _skill_present(kw: str, text_lower: str) -> bool:
     """ASCII 关键词按词边界匹配，中文关键词按子串匹配（T29.2）。
 
+    全项目唯一的「词在不在」实现（B1 挑刺修复：此前 lexical.py 另有一份已分叉的
+    _present，任何一边单独改动都会复现 T51 的"证据链说符合、词面分说没有"）。
     朴素子串会把 "MySQL" 里的 "sql" 误切出来——页面上就是一条原文里不存在的技能。
     T51：ASCII 词尾允许可选复数 s（简历写 "Transformers" 也认得词典词
     "Transformer"）；关键词本身以 s 结尾的（pandas/redis）不再追加，避免匹配 pandass。
+    边界两侧不得再接字母数字/+/#/点：c 不命中 c++ 里的 c、.net 不命中 asp.net。
     """
     if kw.isascii():
         lo = kw.lower()
         tail = "" if lo.endswith("s") else "s?"
-        pat = rf"(?<![a-z0-9]){re.escape(lo)}{tail}(?![a-z0-9])"
+        pat = rf"(?<![a-z0-9+#.]){re.escape(lo)}{tail}(?![a-z0-9+#.])"
         return re.search(pat, text_lower) is not None
     return kw.lower() in text_lower
 

@@ -16,6 +16,8 @@ CREATE TABLE IF NOT EXISTS resumes (
     raw_text      TEXT,                              -- 解析出的纯文本（大字段，列表页不返回）
     parse_status  TEXT    NOT NULL DEFAULT 'pending',-- 解析状态：pending/processing/done/failed
     parse_error   TEXT,                              -- 解析失败原因（成功为NULL）
+    source        TEXT,                              -- 语料来源：business（业务简历）/rewrite/semispec/fresh（历次评测考卷批次）；T53 起上传时显式写入，历史行由 init_db 按导入时间窗一次性回填
+    owner_pid     INTEGER,                           -- 在途任务属主进程（B2：启动清扫只清属主已死的行）
     created_at    TEXT    NOT NULL DEFAULT (datetime('now','localtime')) -- 上传时间
 );
 
@@ -47,6 +49,7 @@ CREATE TABLE IF NOT EXISTS match_tasks (
     status        TEXT    NOT NULL DEFAULT 'pending',-- 状态：pending/running/done/failed
     progress      INTEGER NOT NULL DEFAULT 0,        -- 进度 0-100（前端轮询展示）
     error         TEXT,                              -- 失败原因（成功为NULL）
+    owner_pid     INTEGER,                           -- 在途任务属主进程（B2：启动清扫只清属主已死的行）
     created_at    TEXT    NOT NULL DEFAULT (datetime('now','localtime')), -- 创建时间
     finished_at   TEXT                               -- 完成时间（未完成为NULL）
 );

@@ -114,9 +114,12 @@ def main() -> int:
     ap.add_argument("--seed", type=int, default=42)
     args = ap.parse_args()
 
-    from tools.train_contrastive import ROLE_JDS, train_contrastive
+    from tools.train_contrastive import ROLE_JDS, check_pool_manifest, train_contrastive
 
     tagged = load_tagged()
+    # B8 同源核对：全量训练的 manifest 记录的是 train_contrastive 的池；留出法取数
+    # 路相同，池对不上同样意味着"留出从未参与训练"的口径要对时间
+    check_pool_manifest(Path(__file__).resolve().parents[2] / "models" / "bert_pair", len(tagged))
     held = stratified_split(tagged, args.hold_ratio, args.seed)
     held_rids = sorted(held)
     role_of = {rid: role for rid, _, role in tagged}

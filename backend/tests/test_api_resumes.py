@@ -73,19 +73,21 @@ def test_list_pagination_and_filter():
 
 
 def test_list_corpus_filter():
-    """corpus 语料筛选：按 T37/T38/T46 加试简历时间窗分批，窗口外（含新上传）一律正式简历"""
+    """corpus 语料筛选（T53 改列判）：按 resumes.source 显式过滤；
+    新上传一律 business——不再按 created_at 时间窗判（窗口一过口径漂移的老问题）"""
     from app.db import get_db
     conn = get_db()
     try:
         conn.execute(
-            "INSERT INTO resumes(file_name, file_type, parse_status, created_at, raw_text) "
-            "VALUES('改写卷.docx','docx','done','2026-10-19 13:38:00','正文')")
+            "INSERT INTO resumes(file_name, file_type, parse_status, created_at, raw_text, source) "
+            "VALUES('改写卷.docx','docx','done','2026-10-19 13:38:00','正文','rewrite')")
         conn.execute(
-            "INSERT INTO resumes(file_name, file_type, parse_status, created_at, raw_text) "
-            "VALUES('半规范卷.docx','docx','done','2026-10-19 15:25:00','正文')")
+            "INSERT INTO resumes(file_name, file_type, parse_status, created_at, raw_text, source) "
+            "VALUES('半规范卷.docx','docx','done','2026-10-19 15:25:00','正文','semispec')")
         conn.execute(
-            "INSERT INTO resumes(file_name, file_type, parse_status, created_at, raw_text) "
-            "VALUES('外校卷.docx','docx','done','2026-10-21 09:30:00','正文')")
+            "INSERT INTO resumes(file_name, file_type, parse_status, created_at, raw_text, source) "
+            "VALUES('外校卷.docx','docx','done','2026-10-21 09:30:00','正文','fresh')")
+        # 不带 source（模拟加列前的存量行漏网）→ 视同业务简历
         conn.execute(
             "INSERT INTO resumes(file_name, file_type, parse_status, created_at, raw_text) "
             "VALUES('业务简历.docx','docx','done','2026-10-20 09:00:00','正文')")
@@ -160,6 +162,28 @@ def test_delete_resume_referenced_by_match_results():
     assert st == "done"  # TestClient 同步执行后台任务
     r = client.delete(f"/api/resumes/{rid}")
     assert r.status_code == 200 and r.json()["data"]["deleted"] is True
+
+
+def test_delete_scrubs_score_distribution_snapshot():
+    """A1 回归：删简历后分布快照同步摘除该候选人——此前结果行级联消失、
+    ids_json 快照却永生，点柱反查已删简历 404（三重自相矛盾的第三重）"""
+    rid = client.post("/api/resumes/upload", files={"file": ("dist.docx", _make_docx(RESUME_TEXT), "application/octet-stream")}).json()["data"]["resume_id"]
+    jid = client.post("/api/jds", json={"title": "Python后端工程师", "content": "要求：Python经验。"}).json()["data"]["jd_id"]
+    tid = client.post("/api/match-tasks", json={"jd_id": jid, "top_k": 5}).json()["data"]["task_id"]
+    assert client.get(f"/api/match-tasks/{tid}").json()["data"]["status"] == "done"
+
+    dist = client.get(f"/api/match-tasks/{tid}/score_distribution").json()["data"]
+    n0 = dist["n_candidates"]
+    assert n0 >= 2 and any(x["resume_id"] == rid for x in dist["items"])
+
+    client.delete(f"/api/resumes/{rid}")
+    dist2 = client.get(f"/api/match-tasks/{tid}/score_distribution").json()["data"]
+    assert dist2["n_candidates"] == n0 - 1
+    assert len(dist2["items"]) == n0 - 1
+    assert all(x["resume_id"] != rid for x in dist2["items"])
+    # scores 与 items 仍严格同序等长（点柱反查依赖这一点）
+    assert len(dist2["scores"]) == len(dist2["items"])
+    assert [x["score"] for x in dist2["items"]] == dist2["scores"]
 
 
 def test_upload_saves_original_and_download():

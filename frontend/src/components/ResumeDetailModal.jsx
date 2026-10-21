@@ -75,6 +75,15 @@ export default function ResumeDetailModal({ resumeId, onClose }) {
   const d = detail
   const q = d?.quality || {}
   const lowQuality = d?.parse_status === 'done' && (!q.like_resume || q.entity_count === 0)
+  // 来源口径看全体实体而不是第一条（C2 挑刺修复：rule 兜底记录排第一时会误显示"模型抽取"）
+  const srcSummary = (() => {
+    const es = d?.entities || []
+    if (!es.length) return '—'
+    const nBert = es.filter((e) => e.source === 'bert').length
+    const nRule = es.length - nBert
+    if (nBert && nRule) return `模型抽取 ${nBert} 条 + 规则兜底 ${nRule} 条`
+    return nBert ? `模型抽取 ${nBert} 条` : `规则抽取 ${nRule} 条`
+  })()
 
   return (
     <>
@@ -126,7 +135,7 @@ export default function ResumeDetailModal({ resumeId, onClose }) {
               <div className="warn-text">解析质量提示：正文 {q.text_chars} 字、实体 {q.entity_count} 条
                 {q.like_resume ? '' : '，且内容不像简历'}——可能是扫描件/图片型文件，建议重新解析或换文件</div>
             )}
-            <div className="field-label">抽取实体 · 来源 {d.entities?.[0]?.source || '—'}</div>
+            <div className="field-label">抽取实体 · 来源 {srcSummary}</div>
             <div>
               {d.entities?.length
                 ? d.entities.map((e, i) => (
