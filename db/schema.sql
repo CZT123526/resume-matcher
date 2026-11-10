@@ -77,14 +77,35 @@ CREATE TABLE IF NOT EXISTS match_score_dist (
     created_at    TEXT    NOT NULL DEFAULT (datetime('now','localtime')) -- 生成时间
 );
 
--- 用户表（权限模块预留，当前版本不启用）
+-- 用户表（T54 认证：HR 账号体系，首次启动 users 空表时按 ADMIN_USERNAME/ADMIN_PASSWORD 引导创建）
 CREATE TABLE IF NOT EXISTS users (
     id            INTEGER PRIMARY KEY AUTOINCREMENT, -- 用户ID
     username      TEXT    NOT NULL UNIQUE,           -- 登录名
-    password_hash TEXT    NOT NULL,                  -- 密码哈希（bcrypt，禁止明文）
+    password_hash TEXT    NOT NULL,                  -- 密码哈希（pbkdf2-hmac-sha256，格式 pbkdf2$轮次$盐hex$哈希hex，禁止明文）
     role          TEXT    NOT NULL DEFAULT 'hr',     -- 角色：hr/admin
     created_at    TEXT    NOT NULL DEFAULT (datetime('now','localtime')) -- 创建时间
 );
+
+-- 会话表（T54）：登录签发的 Bearer token，服务端只存其 SHA-256 哈希（库文件泄露也拿不到可复用凭证）
+CREATE TABLE IF NOT EXISTS sessions (
+    token_hash  TEXT    PRIMARY KEY,                -- token 的 SHA-256 十六进制哈希（不存明文）
+    username    TEXT    NOT NULL,                   -- 会话归属用户
+    expires_at  TEXT    NOT NULL,                   -- 过期时间（ISO 8601；过期行在鉴权/登录时顺带清理）
+    created_at  TEXT    NOT NULL DEFAULT (datetime('now','localtime')) -- 签发时间
+);
+CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(username); -- 按用户查会话（登出/清理）
+
+-- 访问审计表（T54）：谁/何时/做了什么；写入失败只打日志不阻塞业务（svc/audit.py）
+CREATE TABLE IF NOT EXISTS audit_log (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,      -- 记录ID
+    username   TEXT,                                   -- 操作人（登录失败时为提交的用户名，可能不存在）
+    action     TEXT    NOT NULL,                       -- 动作：login_success/login_fail/logout/view_resume/reveal_pii/download_file/export_pdf/delete_resume/upload_resume/create_match_task/view_risk
+    target     TEXT,                                   -- 目标对象（如 resume_id=1 / task_id=2）
+    detail     TEXT,                                   -- 补充信息（短文本/JSON）
+    ip         TEXT,                                   -- 客户端 IP
+    created_at TEXT    NOT NULL DEFAULT (datetime('now','localtime')) -- 操作时间
+);
+CREATE INDEX IF NOT EXISTS idx_audit_user ON audit_log(username, created_at); -- 按操作人+时间查审计
 
 -- 简历全文检索表（T29：FTS5 trigram，支持中文子串；独立于 resumes 表，解析完成时同步写入）
 CREATE VIRTUAL TABLE IF NOT EXISTS resume_search USING fts5(

@@ -2,12 +2,13 @@
 import json
 import os
 
-from fastapi import APIRouter, BackgroundTasks, Query
+from fastapi import APIRouter, BackgroundTasks, Query, Request
 
 from app.common.response import ok
 from app.core.errors import AppError, ErrorCode
 from app.db import get_db
 from app.schemas.match import MatchTaskCreate
+from app.svc.audit import log_request_action
 from app.svc.match_pipeline import run_match_pipeline
 from app.svc.ner import METRICS_FILE
 
@@ -15,7 +16,7 @@ router = APIRouter(tags=["match"])
 
 
 @router.post("/api/match-tasks", status_code=202)
-def create_match_task(background: BackgroundTasks, body: MatchTaskCreate):
+def create_match_task(background: BackgroundTasks, body: MatchTaskCreate, request: Request):
     """发起匹配（202 受理），后台执行，前端轮询任务状态"""
     conn = get_db()
     try:
@@ -31,6 +32,8 @@ def create_match_task(background: BackgroundTasks, body: MatchTaskCreate):
     finally:
         conn.close()
 
+    log_request_action(request, "create_match_task", f"task_id={task_id}",
+                       f"jd_id={body.jd_id} top_k={body.top_k}")
     background.add_task(run_match_pipeline, task_id, body.jd_id, body.top_k)
     return ok({"task_id": task_id, "status": "pending"})
 

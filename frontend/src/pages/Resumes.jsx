@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
-  uploadResume, listResumes, deleteResume, resumeFileUrl, searchResumes,
+  uploadResume, listResumes, deleteResume, openResumeFile, searchResumes,
 } from '../api'
 import ResumeDetailModal from '../components/ResumeDetailModal'
 
@@ -95,8 +95,9 @@ export default function Resumes() {
 
   const openDetail = (id) => setDetailId(id)
 
-  const openFile = (id) => {
-    window.open(resumeFileUrl(id), '_blank')
+  // T54：原件接口需登录，window.open 带不了凭证——api 层 blob 中转新标签打开
+  const openFile = async (id) => {
+    try { await openResumeFile(id) } catch (e) { setMsg(`原件打开失败：${e.message}`) }
   }
 
   const onDelete = async (id) => {

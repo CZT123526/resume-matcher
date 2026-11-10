@@ -20,3 +20,7 @@
 | S09 | deepseek_zeroshot(jd_text, resume_text) -> {score, reason} | 对照组二：DeepSeek零样本匹配（仅tools/离线脚本，禁入app/） | 成员A | 已完成 | `a73572d`；DeepSeekScorer，3次退避重试+jsonl缓存，无key干净跳过 |
 | S10 | evaluate(run_files, gold_file) -> {ndcg@10, f1, latency_p95_ms, ...} | 统一计算 P/R/F1、NDCG@K、延迟、成本，图表入 docs/eval/ | 成员A+成员B | 已完成 | `a73572d`；实际入口 tools/run_experiments.py，指标NDCG@10/P@5+排序耗时 |
 | S11 | generate_report(task_id) -> BinaryIO(PDF流) | 汇总结果生成PDF评估报告，api层以application/pdf响应返回 | 成员A | 已完成 | `1e3f055`；内嵌系统TrueType中文字体(CID渲染空白已修) |
+| S13 | authenticate / logout_token / ensure_admin（svc/auth.py） | 登录校验（防枚举）、会话签发/注销（token 只存 SHA-256）、首启管理员引导 | 成员A | 已完成 | T54 `b18a38d`；pbkdf2-hmac-sha256 十万轮零第三方依赖；默认弱密码 ⚠ 日志 |
+| S14 | log_action / log_request_action（svc/audit.py） | 访问审计旁路：登录成败/注销/查看/reveal/下载/导出/删除/上传/发起匹配 | 成员A | 已完成 | T54 `b18a38d`；写失败只打日志不阻塞业务；身份由 auth_guard 写 request.state |
+| S15 | mask_pii（svc/masking.py） | PII 打码：手机号/邮箱/身份证（先邮箱后手机号防截胡）；snippet 强制打码不可 reveal | 成员A | 已完成 | T54 `b18a38d`；PDF 姓名打码单点 report.py `_display_name`（张*） |
+| S16 | auth_guard（core/security.py） | app 级鉴权守卫：豁免面集中一处，校验通过把身份写入 request.state；AUTH_ENABLED=0 一键放行 | 成员A | 已完成 | T54 `b18a38d`；main.py `dependencies=[Depends(auth_guard)]` 单一咽喉 |

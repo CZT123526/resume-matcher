@@ -37,6 +37,18 @@ class Settings:
     # 全部向好且规则零自由参数（见 docs/eval/adaptive_alpha_report.json）；置 0 回到冻结口径
     MATCH_ADAPTIVE_ALPHA = os.getenv("MATCH_ADAPTIVE_ALPHA", "1") == "1"
 
+    # 认证开关（T54）：默认开启；测试套件在 app 导入前置 0 一键关闭（见 tests/conftest.py，
+    # 仿 FORCE_TFIDF 先例——env 必须在 import app 之前生效），鉴权专项由 test_auth.py 在 =1 下覆盖
+    AUTH_ENABLED = os.getenv("AUTH_ENABLED", "1") == "1"
+
+    # 会话有效期（小时）：token 到期后鉴权返回 401 E4011
+    SESSION_TTL_HOURS = float(os.getenv("SESSION_TTL_HOURS", "12"))
+
+    # 管理员引导（T54）：首次启动 users 表为空时按此创建管理员；
+    # ADMIN_PASSWORD 未显式设置时用默认弱密码，启动日志 ⚠ 提示立即改密
+    ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
+    ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
+
     # 注：DeepSeek 相关配置只存在于 backend/tools/baselines/deepseek_zeroshot.py
     # （离线对照组，直接读环境变量）——运行时配置零外部 API 引用（TC-API-01 红线）。
 

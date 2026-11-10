@@ -3,7 +3,7 @@
 // × 或点遮罩或 Esc 关闭；打开时主页面滚动由全局 body:has(.modal-overlay) 锁住。
 import { useEffect, useRef, useState } from 'react'
 import {
-  getResume, getResumeData, reparseResume, getJdRecommendations, resumeFileUrl,
+  getResume, getResumeData, reparseResume, getJdRecommendations, openResumeFile,
 } from '../api'
 
 const STATUS_TEXT = { pending: '排队中', processing: '解析中', done: '已完成', failed: '失败' }
@@ -18,6 +18,8 @@ export default function ResumeDetailModal({ resumeId, onClose }) {
   const [recs, setRecs] = useState(null)        // 反向推荐（API-17，T39）
   const [err, setErr] = useState('')
   const [note, setNote] = useState('')          // 重新解析等动作的即时反馈
+  const [revealed, setRevealed] = useState(false)      // 原文是否已解除打码（T54，后端记审计）
+  const [dataRevealed, setDataRevealed] = useState(false)
   const timerRef = useRef(null)
 
   useEffect(() => {
@@ -26,6 +28,8 @@ export default function ResumeDetailModal({ resumeId, onClose }) {
     setRecs(null)
     setErr('')
     setNote('')
+    setRevealed(false)
+    setDataRevealed(false)
     getResume(resumeId).then(setDetail).catch((e) => setErr(`详情加载失败：${e.message}`))
     const onKey = (e) => { if (e.key === 'Escape') onClose() }
     window.addEventListener('keydown', onKey)
@@ -35,7 +39,21 @@ export default function ResumeDetailModal({ resumeId, onClose }) {
     }
   }, [resumeId, onClose])
 
-  const openFile = () => window.open(resumeFileUrl(resumeId), '_blank')
+  // T54：原件含明文联系方式，接口需登录——window.open 带不了凭证，api 层 blob 中转
+  const openFile = async () => {
+    try { await openResumeFile(resumeId) } catch (e) { setErr(`原件打开失败：${e.message}`) }
+  }
+
+  // T54：解除打码看完整原文（?reveal=1，后端记审计 reveal_pii）
+  const showFullText = async () => {
+    setRevealed(true)
+    try { setDetail(await getResume(resumeId, true)) } catch (e) { setErr(`原文获取失败：${e.message}`) }
+  }
+
+  const showFullData = async () => {
+    setDataRevealed(true)
+    try { setData(await getResumeData(resumeId, true)) } catch (e) { setErr(`数据视图失败：${e.message}`) }
+  }
 
   const openData = async () => {
     setData(null)
@@ -143,7 +161,19 @@ export default function ResumeDetailModal({ resumeId, onClose }) {
                 ))
                 : <span className="muted">暂无实体</span>}
             </div>
-            <div className="field-label">简历原文 · 全文 {d.quality?.text_chars ?? (d.raw_text || '').length} 字，弹窗内可滚动</div>
+            <div className="field-label">
+              简历原文 · 全文 {d.quality?.text_chars ?? (d.raw_text || '').length} 字，弹窗内可滚动
+              {!revealed && d.raw_text && (
+                <button className="btn ghost btn-xs" style={{ marginLeft: 8 }} onClick={showFullText}>
+                  显示完整原文 · 含联系方式
+                </button>
+              )}
+            </div>
+            {!revealed && d.raw_text && (
+              <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>
+                联系方式已打码；查看完整原文会记入审计日志
+              </div>
+            )}
             <div className="muted" style={{ whiteSpace: 'pre-wrap' }}>{d.raw_text || '无'}</div>
             </div>
           </div>
@@ -179,7 +209,14 @@ export default function ResumeDetailModal({ resumeId, onClose }) {
                 </span>
               ))
               : <span className="muted">暂无实体</span>}
-            <div className="field-label">解析全文 · 共 {data.stats.text_chars} 字</div>
+            <div className="field-label">
+              解析全文 · 共 {data.stats.text_chars} 字
+              {!dataRevealed && (
+                <button className="btn ghost btn-xs" style={{ marginLeft: 8 }} onClick={showFullData}>
+                  显示完整原文 · 含联系方式
+                </button>
+              )}
+            </div>
             <details>
               <summary className="muted" style={{ cursor: 'pointer' }}>展开/收起全文</summary>
               <div className="muted" style={{ whiteSpace: 'pre-wrap' }}>{data.raw_text}</div>

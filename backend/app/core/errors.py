@@ -13,6 +13,7 @@ class ErrorCode(str, Enum):
 
     BAD_PARAM = "E4001"            # 参数错误
     UNSUPPORTED_FILE = "E4002"     # 文件类型不支持
+    UNAUTHORIZED = "E4011"         # 未登录或凭证失效（T54）
     NOT_FOUND = "E4041"            # 资源不存在
     CONFLICT = "E4091"             # 状态冲突
     FILE_TOO_LARGE = "E4131"       # 文件过大
@@ -23,6 +24,7 @@ class ErrorCode(str, Enum):
 HTTP_STATUS: dict[ErrorCode, int] = {
     ErrorCode.BAD_PARAM: status.HTTP_400_BAD_REQUEST,
     ErrorCode.UNSUPPORTED_FILE: status.HTTP_400_BAD_REQUEST,
+    ErrorCode.UNAUTHORIZED: status.HTTP_401_UNAUTHORIZED,
     ErrorCode.NOT_FOUND: status.HTTP_404_NOT_FOUND,
     ErrorCode.CONFLICT: status.HTTP_409_CONFLICT,
     ErrorCode.FILE_TOO_LARGE: status.HTTP_413_CONTENT_TOO_LARGE,

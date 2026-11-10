@@ -48,8 +48,18 @@ _SCORE_BUCKETS = [(0.9, 1.01, "0.90~1.00"), (0.8, 0.9, "0.80~0.89"),
                   (0.0, 0.5, "0.00~0.49")]
 
 
-def _fetch_report_data(task_id: int) -> dict:
-    """任务 + JD + 排名结果 + 候选人名（与 results 端点同一口径）"""
+def _display_name(name: str | None, resume_id: int, reveal: bool) -> str:
+    """报告展示名（T54 隐私单点）：默认打码（张三→张*），?reveal=1 显示全名；
+    无姓名实体用占位（与 results 端点同一口径）。单字名打码后失去辨识度，保持原样"""
+    if name is None:
+        return f"候选人{resume_id}"
+    if reveal or len(name) < 2:
+        return name
+    return name[0] + "*" * (len(name) - 1)
+
+
+def _fetch_report_data(task_id: int, reveal: bool = False) -> dict:
+    """任务 + JD + 排名结果 + 候选人名（与 results 端点同一口径；姓名默认打码 T54）"""
     conn = get_db()
     try:
         task = conn.execute(
@@ -81,7 +91,7 @@ def _fetch_report_data(task_id: int) -> dict:
     items = [
         {
             "rank": r["rank"],
-            "candidate_name": names.get(r["resume_id"], f"候选人{r['resume_id']}"),
+            "candidate_name": _display_name(names.get(r["resume_id"]), r["resume_id"], reveal),
             "score": r["score"],
             "evidence": json.loads(r["evidence_json"] or "[]"),
         }
@@ -106,8 +116,11 @@ def _score_distribution(scores: list[float]) -> list[tuple[str, int]]:
     return out or [("—", 0)]
 
 
-def generate_report(task_id: int) -> io.BytesIO:
-    """生成 PDF 评估报告，返回字节流（api 层以 application/pdf 响应）"""
+def generate_report(task_id: int, reveal: bool = False) -> io.BytesIO:
+    """生成 PDF 评估报告，返回字节流（api 层以 application/pdf 响应）。
+
+    reveal=False（默认）候选人姓名打码；True 显示全名（api 层记审计）。
+    """
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.styles import ParagraphStyle
@@ -116,7 +129,7 @@ def generate_report(task_id: int) -> io.BytesIO:
 
     font = _ensure_font()
 
-    data = _fetch_report_data(task_id)
+    data = _fetch_report_data(task_id, reveal)
     now = datetime.now().isoformat(timespec="seconds")
 
     title_style = ParagraphStyle("t", fontName=font, fontSize=16, leading=22, spaceAfter=4)

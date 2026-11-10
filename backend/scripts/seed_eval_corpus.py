@@ -110,8 +110,25 @@ def make_docx(lines: list[str]) -> bytes:
     return buf.getvalue()
 
 
+def _login(client: TestClient) -> None:
+    """T54：业务接口需登录——进程内登录注入 Bearer；失败仅提示（AUTH_ENABLED=0 可裸跑）"""
+    import os
+
+    r = client.post("/api/auth/login", json={
+        "username": os.getenv("ADMIN_USERNAME", "admin"),
+        "password": os.getenv("ADMIN_PASSWORD", "admin123"),
+    })
+    if r.status_code == 200 and r.json().get("code") == 0:
+        client.headers["Authorization"] = f"Bearer {r.json()['data']['token']}"
+        print(f"已登录 {r.json()['data']['username']}")
+    else:
+        print("⚠ 登录失败——后端若开启鉴权，请求将被 401 拒绝；"
+              "可设 ADMIN_PASSWORD 或临时 AUTH_ENABLED=0")
+
+
 def main() -> int:
     client = TestClient(app)
+    _login(client)
 
     existing = {
         r["file_name"]: r["resume_id"]

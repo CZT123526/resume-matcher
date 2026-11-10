@@ -23,3 +23,7 @@
 | API-15 | GET /api/resumes/search | 简历全文搜索（FTS5 trigram 中文子串） | 成员A | 已完成 | `a571298` 2026-10-11；≥3字 FTS MATCH，1-2字 LIKE 降级，snippet「」高亮 |
 | API-16 | GET /api/resumes/{id}/data | 解析数据视图（全文/实体/匹配输入/向量预览） | 成员A | 已完成 | `a571298` 2026-10-11；向量实时编码仅供查看不动缓存 |
 | API-17 | DELETE /api/jds/{id} | 删除JD（名下匹配任务连带删除，结果随FK级联） | 成员B | 已完成 | T32 2026-10-12；响应报 deleted_match_tasks；API-07 同步增 match_task_count 字段 |
+| API-18 | GET /api/match-tasks/{id}/score_distribution | 全量融合分分布（分布图数据源，T43 候选人明细点柱反查） | 成员B | 已完成 | 补录 T40（PR #29 `66da8ff`，历史任务返回空列表前端隐藏分布图）；T40~T48 批次未同步本表，一并补齐 |
+| API-19 | GET /api/stats/home | 主页总览（API-19，T48）：库规模计数+应聘岗位排名+岗位储备排名+覆盖面披露 | 成员B | 已完成 | 补录 T48（PR #30 `643dc90`）；含匹配卡定宽对齐+轮询提速 `33dfa1b` |
+| API-20 | POST /api/auth/login、POST /api/auth/logout、GET /api/auth/me | 认证模块（T54）：pbkdf2 哈希、token 只存 SHA-256、首启引导管理员、防枚举同文案 | 成员A | 已完成 | `b18a38d` 2026-11-10；app 级 auth_guard 统一鉴权（豁免面见 core/security.py），401 E4011 |
+| API-21 | （横切口）PII 打码 + 访问审计（T54） | 详情//data/snippet/PDF 姓名 默认打码，?reveal=1 显示原文并记审计；audit_log 十类动作写失败不阻塞业务 | 成员A | 已完成 | `b18a38d` 2026-11-10；真库冒烟 17/17（无token 401/打码/reveal/审计落表/注销失效全过） |

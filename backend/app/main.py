@@ -6,15 +6,17 @@
 """
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.config import settings
 from app.core.errors import AppError, ErrorCode, HTTP_STATUS
+from app.core.security import auth_guard
 from app.db import backfill_search_index, init_db
-from app.api import jds, match, reports, resumes, stats
+from app.api import auth, jds, match, reports, resumes, stats
+from app.svc.auth import ensure_admin
 
 
 @asynccontextmanager
@@ -27,6 +29,7 @@ async def lifespan(_app: FastAPI):
     owner_pid 为空的行是加列前的历史遗留，属主无从考证，照旧清扫。
     """
     init_db()
+    ensure_admin()  # T54：users 空表时按 ADMIN_USERNAME/ADMIN_PASSWORD 引导创建管理员
     backfill_search_index()  # 全文索引幂等回填（T29）
     import os
 
@@ -72,7 +75,10 @@ async def lifespan(_app: FastAPI):
     yield
 
 
-app = FastAPI(title="resume-matcher", version=settings.VERSION, lifespan=lifespan)
+# T54：鉴权守卫挂在 app 级一处（豁免面与校验逻辑见 core/security.py，
+# 契约见 backend-api.md 通用约定）；401 由全局 AppError 处理器统一转 E4011 包裹
+app = FastAPI(title="resume-matcher", version=settings.VERSION, lifespan=lifespan,
+              dependencies=[Depends(auth_guard)])
 
 
 # ---------- 全局异常处理：所有错误统一为 {"code","message","data"} 包裹 ----------
@@ -133,7 +139,8 @@ def health():
     return {"status": "ok"}
 
 
-# 业务路由挂载
+# 业务路由挂载（auth 的 /login 在豁免面内；/logout、/me 由 app 级守卫保护）
+app.include_router(auth.router)
 app.include_router(resumes.router)
 app.include_router(jds.router)
 app.include_router(match.router)
