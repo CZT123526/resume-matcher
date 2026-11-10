@@ -10,3 +10,4 @@
 | F03 | 多模型对比实验 | 三组基线离线跑分→统一指标→对比图表 | S08/S09/本系统 → S10 → docs/图表 | 成员A+成员B | 已完成 | T32 2026-10-12 金标准 v2 正式重跑（852对/23查询），产物 docs/eval/metrics.json + ndcg_chart.png + gold_spotcheck.md |
 | F04 | 报告导出 | 任务完成后导出PDF评估报告 | API-11 → S11 | 成员A+成员C | 已完成 | `1e3f055`；TC-05-01通过(pypdf反读断言) |
 | F05 | 一键部署 | docker compose up 全栈可用 | M06 | 成员C | 进行中 | `8b57ead` 配置完成；本机无Docker未实机验证 |
+| F06 | 登录-鉴权-审计链路（T54） | 登录签发 token → 业务接口带 Bearer 访问 → 敏感动作落 audit_log → 注销即失效；无凭证一律 401 E4011 | API-20 → S13/S14/S16 → audit_log 表 | 成员A | 已完成 | `b18a38d` 2026-11-10；AUTH_ENABLED=1 专项 17/17 + 真库冒烟 17/17 双验证 |
