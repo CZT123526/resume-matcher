@@ -37,9 +37,10 @@ const fixtures = {
       return {
         resume_id: 1,
         findings: [
-          { level: 'ok', text: '未发现明显矛盾点' },
+          { level: 'warn', text: '技能 Docker 无经历描述支撑' },
+          { level: 'warn', text: '联系方式 12345678901 格式异常（手机号应为 1[3-9] 开头的 11 位数字）', evidence: '12345678901' },
         ],
-        summary: '未发现明显矛盾点',
+        summary: '发现 2 项提示，建议人工复核',
         checked_at: '2026-10-10T09:00:00',
       }
     }

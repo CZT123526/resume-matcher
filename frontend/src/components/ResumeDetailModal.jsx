@@ -167,7 +167,7 @@ export default function ResumeDetailModal({ resumeId, onClose }) {
             )}
             {risk && (
               <div style={{ marginBottom: 12 }}>
-                <div className="field-label">风控体检 · 时间线矛盾 / 技能脱节 / 疑似克隆 / 联系方式格式异常</div>
+                <div className="field-label">风控体检 · 时间线矛盾 / 技能脱节 / 联系方式格式异常</div>
                 {risk.loading && <span className="muted">检测中…</span>}
                 {risk.error && <span className="error-text">体检失败：{risk.error}</span>}
                 {risk.data && (
