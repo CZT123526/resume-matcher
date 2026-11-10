@@ -24,4 +24,4 @@
 | S14 | log_action / log_request_action（svc/audit.py） | 访问审计旁路：登录成败/注销/查看/reveal/下载/导出/删除/上传/发起匹配 | 成员A | 已完成 | T54 `b18a38d`；写失败只打日志不阻塞业务；身份由 auth_guard 写 request.state |
 | S15 | mask_pii（svc/masking.py） | PII 打码：手机号/邮箱/身份证（先邮箱后手机号防截胡）；snippet 强制打码不可 reveal | 成员A | 已完成 | T54 `b18a38d`；PDF 姓名打码单点 report.py `_display_name`（张*） |
 | S16 | auth_guard（core/security.py） | app 级鉴权守卫：豁免面集中一处，校验通过把身份写入 request.state；AUTH_ENABLED=0 一键放行 | 成员A | 已完成 | T54 `b18a38d`；main.py `dependencies=[Depends(auth_guard)]` 单一咽喉 |
-| S17 | risk_check（svc/risk.py） | 风控体检四类检测：时间线矛盾（risk）/技能脱节/疑似克隆/联系方式格式（warn），findings 结构化输出 | 成员A | 已完成 | T55 `1b885fb`；_skill_present（B1 单一实现）+ _work_lines 复用；克隆=缓存点积 ≥0.98 且姓名不同，缓存不可得整项跳过；只读库不写表 |
+| S17 | risk_check（svc/risk.py） | 风控体检四类检测：时间线矛盾（risk）/技能脱节/疑似克隆/联系方式格式（warn），findings 结构化输出 | 成员A | 已完成 | T55 `1b885fb`；_skill_present（B1 单一实现）+ _work_lines 复用；克隆只在业务投递池内点积 ≥0.98 且姓名不同（评测语料模板孪生不进池），缓存不可得整项跳过、绝不内联重建；只读库不写表 |

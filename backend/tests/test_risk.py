@@ -22,13 +22,13 @@ client = TestClient(app, raise_server_exceptions=False)
 
 
 def _seed(text: str, skills: list[str] | None = None, name: str | None = None,
-          parse_status: str = "done") -> int:
+          parse_status: str = "done", source: str = "business") -> int:
     conn = get_db()
     try:
         cur = conn.execute(
             "INSERT INTO resumes(file_name, file_type, parse_status, raw_text, source) "
-            "VALUES('risk测试.docx','docx',?,?,'business')",
-            (parse_status, text),
+            "VALUES('risk测试.docx','docx',?,?,?)",
+            (parse_status, text, source),
         )
         rid = cur.lastrowid
         if name:
@@ -136,11 +136,34 @@ def test_risk_check_clone_twins():
     twin = "姓名：占位\n1、负责风控策略模块开发与维护工作，精通Scala与Kafka消息队列"
     rid_a = _seed(twin, name="克隆甲")
     rid_b = _seed(twin, name="克隆乙")
+    # 克隆检测只读缓存（视图端点不内联重建），测试先显式建库
+    from app.svc.vectors import ensure_cache
+
+    ensure_cache()
     out = risk_check(rid_a)
     cl = [f for f in out["findings"] if "疑似重复投递" in f["text"]]
     assert cl and cl[0]["level"] == "warn"
     assert "克隆乙" in cl[0]["text"]
     assert f"resume_id={rid_b}" in cl[0]["evidence"]
+
+
+def test_risk_check_clone_skips_when_cache_stale():
+    # 契约口径：缓存不可得 → 克隆项整项缺席，且不触发重建（秒级返回）
+    rid = _seed("1、负责缓存陈旧场景验证的开发与测试工作", name="陈旧验证")
+    out = risk_check(rid)  # 刚插入未建库，load_cache 必然失效
+    assert all("疑似重复投递" not in f["text"] for f in out["findings"])
+
+
+def test_risk_check_clone_pool_business_only():
+    # 比对池只收业务投递（source='business'）：评测语料的模板孪生不构成「重复投递」
+    twin = "姓名：占位\n1、负责语料池隔离验证的开发与维护工作，精通Rust与Wasm运行时"
+    _seed(twin, name="语料甲", source="rewrite")
+    rid_biz = _seed(twin, name="语料乙")  # business，与语料甲文本全同（余弦 1.0）
+    from app.svc.vectors import ensure_cache
+
+    ensure_cache()
+    out = risk_check(rid_biz)
+    assert all("疑似重复投递" not in f["text"] for f in out["findings"])
 
 
 # ---------- API 契约 ----------

@@ -10,9 +10,12 @@
 2. 技能脱节（warn）：skill 实体值经 _skill_present（B1 全项目唯一「词在不在」实现）
    在经历行查不到 → warn。经历行复用 vectors._work_lines（"姓名：/电话：" 字段行已被
    结构性排除，技能清单行"技能：X"也带冒号不入选——查的就是"经历正文有没有支撑"）。
-3. 疑似克隆（warn）：简历向量近邻点积 ≥0.98（缓存矩阵已 L2 归一化，点积即余弦）且
-   两人姓名实体不同 → warn 疑似重复投递；缓存不可用（load_cache 失效迹象）先试
-   ensure_cache 现场重建，仍不可得则整项如实跳过。
+3. 疑似克隆（warn）：简历向量与**业务投递池**（source='business'，评测语料不参与——
+   模板生成简历天然近重复，真库实测 0.98 阈值下 3.8 万对全是模板孪生，混入即噪音）
+   近邻点积 ≥0.98（缓存矩阵已 L2 归一化，点积即余弦）且姓名实体不同 → warn 疑似
+   重复投递；只读 load_cache()，缓存不可得则整项如实跳过——本接口是视图端点，
+   绝不内联触发 ensure_cache 重建（真库 BERT 全量重建分钟级，会把 HTTP 请求卡死；
+   重建由匹配/反向推荐等后台链路负责，与契约口径一致）。
 4. 联系方式格式异常（warn）：以 1 开头的 10~12 位数字串若不符合手机号形状
    （1[3-9] 开头恰好 11 位，与 T54 打码正则同源判断）→ warn。合法号码不提示。
 
@@ -30,7 +33,7 @@ import numpy as np
 from app.core.errors import AppError, ErrorCode
 from app.db import get_db
 from app.svc.ner_rules import _skill_present
-from app.svc.vectors import _work_lines, ensure_cache, load_cache
+from app.svc.vectors import _work_lines, load_cache
 
 logger = logging.getLogger(__name__)
 
@@ -100,28 +103,45 @@ def _skill_gap_findings(raw_text: str, skills: list[str]) -> list[dict]:
 
 
 # ---------- 疑似克隆 ----------
-_CLONE_THRESHOLD = 0.98  # 初值；真库抽样校准口径见 docs/算法设计.md §风控规则
+_CLONE_THRESHOLD = 0.98  # 业务投递池内比对；阈值定界见 docs/算法设计.md §风控规则
+
+
+def _business_ids() -> set[int]:
+    """业务投递池 id 集（source 列判，NULL 由 COALESCE 按业务兜底——T53 同口径）"""
+    conn = get_db()
+    try:
+        rows = conn.execute(
+            "SELECT id FROM resumes WHERE COALESCE(source,'business')='business'"
+        ).fetchall()
+    finally:
+        conn.close()
+    return {r["id"] for r in rows}
 
 
 def _clone_finding(resume_id: int, name_of: dict[int, str]) -> dict | None:
-    """向量近邻点积 ≥0.98 且姓名不同 → 疑似重复投递；缓存不可得则如实跳过。"""
+    """与业务投递池近邻点积 ≥0.98 且姓名不同 → 疑似重复投递；不可得则如实跳过。
+
+    只读 load_cache()，绝不内联 ensure_cache——视图端点触发分钟级重建会把请求卡死。
+    比对池限定业务投递（source='business'）：评测语料是模板生成数据，天然近重复
+    （真库实测 ≥0.98 对数 3.8 万、p50 最近邻=1.0），混入比对池检查就失去意义。
+    """
     cached = load_cache()
     if cached is None:
-        try:
-            cached = ensure_cache()
-        except Exception:
-            logger.warning("风控克隆检测：向量缓存不可用，该项跳过")
-            return None
-    matrix, order = cached
-    if resume_id not in order or len(order) < 2:
+        logger.info("风控克隆检测：向量缓存不可用（未建库或已失效），该项跳过")
         return None
-    i = order.index(resume_id)
-    sims = matrix @ matrix[i]
-    sims[i] = -1.0  # 排除自身
+    matrix, order = cached
+    if resume_id not in order:
+        return None
+    biz = _business_ids()
+    pool = [rid for rid in order if rid != resume_id and rid in biz]
+    if not pool:
+        return None
+    pos_of = {rid: k for k, rid in enumerate(order)}
+    sims = matrix[[pos_of[rid] for rid in pool]] @ matrix[pos_of[resume_id]]
     j = int(np.argmax(sims))
     if float(sims[j]) < _CLONE_THRESHOLD:
         return None
-    other = order[j]
+    other = pool[j]
     mine, theirs = name_of.get(resume_id, ""), name_of.get(other, "")
     if not mine or not theirs or mine == theirs:
         return None  # 姓名一致更像同一人多份版本，不作克隆提示
