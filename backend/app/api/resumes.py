@@ -4,13 +4,15 @@
 """
 from pathlib import Path
 
-from fastapi import APIRouter, BackgroundTasks, File, Query, UploadFile
+from fastapi import APIRouter, BackgroundTasks, File, Query, Request, UploadFile
 from fastapi.responses import FileResponse
 
 from app.common.format import iso_time
 from app.common.response import ok
 from app.core.errors import AppError, ErrorCode
 from app.db import get_db, rows_to_dicts, upload_dir
+from app.svc.audit import log_request_action
+from app.svc.masking import mask_pii
 from app.svc.pipeline import run_parse_pipeline
 
 router = APIRouter(prefix="/api/resumes", tags=["resumes"])
@@ -32,7 +34,8 @@ def _corpus_conds(corpus: str) -> list[str]:
 
 
 @router.post("/upload", status_code=202)
-async def upload_resume(background: BackgroundTasks, file: UploadFile = File(...)):
+async def upload_resume(background: BackgroundTasks, request: Request,
+                        file: UploadFile = File(...)):
     """上传简历（202 已受理），后台异步解析，前端轮询 GET /api/resumes/{id}。
 
     B4 挑刺修复：先写临时文件、成功后INSERT 再原子改名——任何一步失败都
@@ -85,6 +88,7 @@ async def upload_resume(background: BackgroundTasks, file: UploadFile = File(...
             finally:
                 conn.close()
         raise
+    log_request_action(request, "upload_resume", f"resume_id={resume_id}", Path(filename).name)
     return ok({"resume_id": resume_id, "file_name": Path(filename).name, "parse_status": "pending"})
 
 
@@ -172,17 +176,21 @@ def search_resumes(q: str = Query(..., min_length=1, max_length=100), limit: int
     finally:
         conn.close()
 
+    # T54 隐私：搜索 snippet 强制打码（不可 reveal）——列表页同样不许泄露联系方式
     items = [
         {"resume_id": r["id"], "file_name": r["file_name"], "parse_status": r["parse_status"],
-         "created_at": iso_time(r["created_at"]), "snippet": r["snippet"]}
+         "created_at": iso_time(r["created_at"]), "snippet": mask_pii(r["snippet"])}
         for r in rows
     ]
     return ok({"total": len(items), "items": items})
 
 
 @router.get("/{resume_id}")
-def resume_detail(resume_id: int):
-    """详情：解析状态 + 实体列表 + raw_text 全文 + 解析质量信号（T29；T30.1 起返回全文）"""
+def resume_detail(resume_id: int, request: Request, reveal: bool = Query(False)):
+    """详情：解析状态 + 实体列表 + raw_text 全文 + 解析质量信号（T29；T30.1 起返回全文）。
+
+    T54 隐私：raw_text 默认打码（手机号/邮箱/身份证）；?reveal=1 返回原文并记审计。
+    """
     conn = get_db()
     try:
         row = conn.execute(
@@ -202,12 +210,19 @@ def resume_detail(resume_id: int):
 
     full_text = row["raw_text"] or ""
     entities = rows_to_dicts(entity_rows)
+    # 审计：查看详情必记；reveal 看原文再补一条（T54）
+    log_request_action(request, "view_resume", f"resume_id={resume_id}")
+    if reveal and full_text:
+        log_request_action(request, "reveal_pii", f"resume_id={resume_id}")
+    # 打码展示（mask_pii 不改变手机号/身份证长度，仅邮箱变短）；质量信号 text_chars
+    # 仍按原文长度算——它度量的是解析产出，不是展示口径
+    text_out = full_text if reveal else (mask_pii(full_text) or None)
     return ok({
         "resume_id": row["id"],
         "file_name": row["file_name"],
         "parse_status": row["parse_status"],
         "parse_error": row["parse_error"],
-        "raw_text": full_text or None,  # T30.1：不再截 500 字，弹窗内可滚动看全文
+        "raw_text": text_out or None,  # T30.1：不再截 500 字，弹窗内可滚动看全文（T54 默认打码）
         "entities": entities,
         "created_at": iso_time(row["created_at"]),
         # 质量信号：done 但不像简历/零实体 → 前端给出"疑似扫描件"类提示，不阻断
@@ -228,8 +243,12 @@ def jd_recommendations(resume_id: int, top_k: int = Query(3, ge=1, le=10)):
 
 
 @router.get("/{resume_id}/data")
-def resume_data(resume_id: int):
-    """解析数据视图（API-16，T29）：这份简历被读成了什么数据——全文/实体/匹配输入/向量"""
+def resume_data(resume_id: int, request: Request, reveal: bool = Query(False)):
+    """解析数据视图（API-16，T29）：这份简历被读成了什么数据——全文/实体/匹配输入/向量。
+
+    T54 隐私：全文与匹配输入默认打码展示（?reveal=1 显示原文并记审计）；
+    向量预览来自原始输入编码，纯数值不含 PII。
+    """
     conn = get_db()
     try:
         row = conn.execute(
@@ -256,6 +275,14 @@ def resume_data(resume_id: int):
                                "entities": [(e["field_key"], e["field_value"]) for e in entities]})
     vec = get_encoder().encode([st_text])[0]
 
+    # 审计：查看数据视图必记；reveal 看原文再补一条（T54）
+    log_request_action(request, "view_resume", f"resume_id={resume_id}", "data_view")
+    if reveal and (row["raw_text"] or ""):
+        log_request_action(request, "reveal_pii", f"resume_id={resume_id}")
+    # 匹配实际使用原始输入（编码/缓存不受展示打码影响），这里只对展示口径打码
+    text_out = (row["raw_text"] or "") if reveal else (mask_pii(row["raw_text"]) or "")
+    st_out = st_text if reveal else mask_pii(st_text)
+
     return ok({
         "resume_id": row["id"],
         "file_name": row["file_name"],
@@ -269,9 +296,9 @@ def resume_data(resume_id: int):
             "rule_count": len(entities) - bert_n,
         },
         "entities": entities,
-        "raw_text": row["raw_text"] or "",
+        "raw_text": text_out,
         "matching": {
-            "structured_text": st_text,
+            "structured_text": st_out,
             "vector_dim": int(vec.shape[0]),
             "vector_norm": round(float((vec ** 2).sum() ** 0.5), 4),
             "vector_preview": [round(float(x), 4) for x in vec[:8]],
@@ -310,8 +337,11 @@ def reparse_resume(background: BackgroundTasks, resume_id: int):
 
 
 @router.get("/{resume_id}/file")
-def download_resume_file(resume_id: int):
-    """简历原件（API-13）：PDF 浏览器内预览，DOCX 触发下载；文件随上传落盘于 db/uploads/"""
+def download_resume_file(resume_id: int, request: Request):
+    """简历原件（API-13）：PDF 浏览器内预览，DOCX 触发下载；文件随上传落盘于 db/uploads/
+
+    注意：原件本身含明文联系方式，属敏感操作——下载必记审计（T54）。
+    """
     conn = get_db()
     try:
         row = conn.execute(
@@ -325,11 +355,12 @@ def download_resume_file(resume_id: int):
     path = upload_dir() / f"{resume_id}.{row['file_type']}"
     if not path.exists():
         raise AppError(ErrorCode.NOT_FOUND, "原件文件不存在（该简历上传于原件保存功能上线前）")
+    log_request_action(request, "download_file", f"resume_id={resume_id}", row["file_name"])
     return FileResponse(path, filename=row["file_name"])
 
 
 @router.delete("/{resume_id}")
-def delete_resume(resume_id: int):
+def delete_resume(resume_id: int, request: Request):
     """删除简历（P1）：实体与历史结果随 ON DELETE CASCADE 级联清除；
     向量缓存由匹配侧按 id 集比对自动重建。
 
@@ -371,4 +402,5 @@ def delete_resume(resume_id: int):
     # 原件一并清理（尽力而为；按 id 前缀匹配扩展名，缺失不阻断删除）
     for f in upload_dir().glob(f"{resume_id}.*"):
         f.unlink(missing_ok=True)
+    log_request_action(request, "delete_resume", f"resume_id={resume_id}")
     return ok({"resume_id": resume_id, "deleted": True})

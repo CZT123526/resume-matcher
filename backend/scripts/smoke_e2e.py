@@ -3,6 +3,9 @@
 用法：
     1. 先起服务: uvicorn app.main:app --port 8000
     2. 再跑:  python scripts/smoke_e2e.py http://127.0.0.1:8000
+
+认证（T54）：业务接口需登录——脚本自动用 ADMIN_USERNAME/ADMIN_PASSWORD
+（默认 admin/admin123）登录并注入 Bearer；密码已改时用环境变量传入。
 """
 import sys
 import tempfile
@@ -46,8 +49,25 @@ def wait_parse(client: httpx.Client, resume_id: int, timeout: int = 120) -> dict
     raise TimeoutError(f"简历 {resume_id} 解析超时")
 
 
+def login(client: httpx.Client) -> None:
+    """T54：自动登录并给会话注入 Bearer；失败仅提示（AUTH_ENABLED=0 的后端可裸跑）"""
+    import os
+
+    r = client.post("/api/auth/login", json={
+        "username": os.getenv("ADMIN_USERNAME", "admin"),
+        "password": os.getenv("ADMIN_PASSWORD", "admin123"),
+    })
+    if r.status_code == 200 and r.json().get("code") == 0:
+        client.headers["Authorization"] = f"Bearer {r.json()['data']['token']}"
+        print(f"[0/5] 已登录 {r.json()['data']['username']}")
+    else:
+        print("[0/5] ⚠ 登录失败——后端若开启鉴权，后续业务请求将 401；"
+              "可设 ADMIN_PASSWORD 环境变量或临时 AUTH_ENABLED=0")
+
+
 def main() -> int:
     client = httpx.Client(base_url=BASE, timeout=120)
+    login(client)
     health = client.get("/api/health").json()
     assert health["status"] == "ok", f"探活失败: {health}"
     print("[1/5] 探活 OK")

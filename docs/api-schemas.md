@@ -24,6 +24,7 @@
 |---|---|---|---|
 | E4001 | 400 | 参数错误 | 校验失败、JSON 解析失败 |
 | E4002 | 400 | 文件类型不支持 | 上传 .exe/.zip |
+| E4011 | 401 | 未登录或凭证失效 | 未携带/过期/无效 token（T54） |
 | E4041 | 404 | 资源不存在 | resume_id/jd_id/task_id 无效 |
 | E4091 | 409 | 状态冲突 | 重复提交解析中的简历 |
 | E4131 | 413 | 文件过大 | > 10MB |
@@ -212,7 +213,32 @@ Body：`{"jd_id": int, "top_k": int=10, 1..50}`
 
 ### GET /api/reports/{task_id}/export `200`（P1）
 
-返回 `application/pdf` 文件流（不走统一包裹）。
+返回 `application/pdf` 文件流（不走统一包裹）。T54 起候选人姓名默认打码（`张*`），`?reveal=1` 显示全名并记审计。
+
+---
+
+## 5. 认证模块（T54）
+
+### POST /api/auth/login `200`
+
+- 请求：`{"username": string(1~64), "password": string(1~128)}`
+- `data`：`{username: string, role: "hr"|"admin", token: string(urlsafe, 43 字符), expires_at: ISO 时间}`
+- 失败：`401 E4011`（文案统一"用户名或密码错误"，不区分防枚举）
+
+### POST /api/auth/logout `200`
+
+`data`：`{logged_out: true}`——当前 Bearer token 的服务端会话删除
+
+### GET /api/auth/me `200`
+
+`data`：`{username: string, role: "hr"|"admin"}`
+
+### 打码口径（T54）
+
+- `mask_pii`：手机号 `1[3-9]\d{9}` → 前 3 后 4（`138****1234`）；邮箱 → 用户名前 2 位 + `***@域名`；身份证 18 位 → 前 4 后 2
+- 详情 `/resumes/{id}` 与 `/resumes/{id}/data` 的 `raw_text` 默认已打码，`?reveal=1` 返回原文并记审计 `reveal_pii`
+- 搜索 snippet 恒为打码版（无 reveal）
+- 风控接口（T55）：`GET /resumes/{id}/risk` → `data`：`{resume_id, findings: [{level: "ok"|"warn"|"risk", text: string, evidence?: string}], summary: string, checked_at}`
 
 ---
 

@@ -6,6 +6,7 @@
 
 用法：cd backend && python -X utf8 -I tools/seed_jds_industry.py [--base http://127.0.0.1:8000]
 """
+import os
 import sys
 
 import httpx
@@ -346,6 +347,19 @@ JDS = [
 ]
 
 
+
+def _auth_headers(base: str) -> dict:
+    """T54：业务接口需登录——登录取 Bearer；失败仅提示（AUTH_ENABLED=0 可裸跑）"""
+    r = httpx.post(f"{base}/api/auth/login", json={
+        "username": os.getenv("ADMIN_USERNAME", "admin"),
+        "password": os.getenv("ADMIN_PASSWORD", "admin123"),
+    }, timeout=15)
+    if r.status_code == 200 and r.json().get("code") == 0:
+        return {"Authorization": f"Bearer {r.json()['data']['token']}"}
+    print("⚠ 登录失败——后端若开启鉴权，请求将被 401 拒绝；"
+          "可设 ADMIN_PASSWORD 或临时 AUTH_ENABLED=0")
+    return {}
+
 def main() -> int:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -353,6 +367,7 @@ def main() -> int:
     for a in sys.argv[1:]:
         if a.startswith("--base="):
             base = a.split("=", 1)[1]
+    AUTH = _auth_headers(base)
     created, skipped, failed = 0, 0, []
     for jd in JDS:
         content = "\n".join(
@@ -366,11 +381,13 @@ def main() -> int:
             + ["", "公司信息：行业内成长型企业，业务稳定扩张，团队氛围务实，晋升通道清晰，五险一金齐全，欢迎踏实肯干的年轻人加入。"]
         )
         try:
-            exist = httpx.get(f"{base}/api/jds?keyword={jd['title']}&page=1&page_size=50", timeout=15).json()["data"]
+            exist = httpx.get(f"{base}/api/jds?keyword={jd['title']}&page=1&page_size=50",
+                          headers=AUTH, timeout=15).json()["data"]
             if any(it["title"] == jd["title"] for it in exist.get("items", [])):
                 skipped += 1
                 continue
-            r = httpx.post(f"{base}/api/jds", json={"title": jd["title"], "content": content}, timeout=30)
+            r = httpx.post(f"{base}/api/jds", json={"title": jd["title"], "content": content},
+                       headers=AUTH, timeout=30)
             if r.status_code in (200, 201):
                 created += 1
             else:

@@ -7,6 +7,7 @@
 
 用法：cd backend && python -X utf8 -I tools/seed_jds.py [--base http://127.0.0.1:8000]
 """
+import os
 import sys
 
 import httpx
@@ -758,7 +759,22 @@ def main() -> int:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
     existing = {}
+
+    def login(c: "httpx.Client") -> None:
+        """T54：业务接口需登录——自动登录注入 Bearer；失败仅提示（AUTH_ENABLED=0 可裸跑）"""
+        r = c.post(f"{BASE}/api/auth/login", json={
+            "username": os.getenv("ADMIN_USERNAME", "admin"),
+            "password": os.getenv("ADMIN_PASSWORD", "admin123"),
+        })
+        if r.status_code == 200 and r.json().get("code") == 0:
+            c.headers["Authorization"] = f"Bearer {r.json()['data']['token']}"
+            print(f"已登录 {r.json()['data']['username']}")
+        else:
+            print("⚠ 登录失败——后端若开启鉴权，请求将被 401 拒绝；"
+                  "可设 ADMIN_PASSWORD 或临时 AUTH_ENABLED=0")
+
     with httpx.Client(timeout=30) as c:
+        login(c)
         page = 1
         while True:
             d = c.get(f"{BASE}/api/jds?page={page}&page_size=100").json()["data"]

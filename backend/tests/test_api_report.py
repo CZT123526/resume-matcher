@@ -50,8 +50,15 @@ def test_export_report_pdf():
     # 反读 PDF：标题、候选人、证据链文案真实存在（TC-05-01）
     text = "".join(page.extract_text() or "" for page in PdfReader(BytesIO(r.content)).pages)
     assert "简历匹配评估报告" in text
-    assert "赵六" in text
+    # T54 隐私：报告姓名默认打码（赵六→赵*），全名不出现
+    assert "赵" in text and "赵六" not in text
     assert "证据链" in text or "技能重叠" in text
+
+    # ?reveal=1 显示全名（api 层记审计）
+    r2 = client.get(f"/api/reports/{task_id}/export?reveal=1")
+    assert r2.status_code == 200
+    text2 = "".join(page.extract_text() or "" for page in PdfReader(BytesIO(r2.content)).pages)
+    assert "赵六" in text2
 
 
 def test_export_report_conflict_on_pending():

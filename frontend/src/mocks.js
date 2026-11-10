@@ -7,6 +7,17 @@ let resumeSeq = 3
 let taskSeq = 100
 
 const fixtures = {
+  // 认证夹具（T54）：演示口令 admin/admin123，其余一律「用户名或密码错误」
+  'POST /auth/login': async (opt) => {
+    await delay()
+    const body = JSON.parse(opt.body || '{}')
+    if (body.username === 'admin' && body.password === 'admin123') {
+      return { username: 'admin', role: 'admin', token: 'mock-token-0123456789', expires_at: '2026-12-31T00:00:00' }
+    }
+    throw new Error('用户名或密码错误')
+  },
+  'POST /auth/logout': async () => ({ logged_out: true }),
+  'GET /auth/me': async () => ({ username: 'admin', role: 'admin' }),
   'POST /resumes/upload': async () => {
     await delay()
     return { resume_id: ++resumeSeq, file_name: '示例简历.pdf', parse_status: 'pending' }

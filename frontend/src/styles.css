@@ -330,3 +330,17 @@ body:has(.modal-overlay) { overflow: hidden; }
 .stat-sub { color: var(--muted); font-size: 12px; line-height: 1.6; margin-top: 8px; }
 @media (max-width: 960px) { .stat-row { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 520px) { .stat-row { grid-template-columns: 1fr; } }
+
+/* ---------- 15. 登录页与侧边栏用户区（T54） ---------- */
+.login-wrap {
+  min-height: 100vh; display: flex; align-items: center; justify-content: center;
+  background: var(--primary-softer); padding: 20px;
+}
+.login-card { width: 100%; max-width: 380px; padding: 32px 28px; box-shadow: var(--shadow-md); }
+.login-card input { width: 100%; }
+.side-foot {
+  margin-top: auto; padding-top: 14px; border-top: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+}
+.side-user { font-size: 13px; color: var(--text-2); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.btn-xs { padding: 2px 10px; font-size: 12px; }
