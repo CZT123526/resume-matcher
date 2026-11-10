@@ -73,11 +73,23 @@ npm run dev
 - 测试套件默认 `AUTH_ENABLED=0` 关闭鉴权；鉴权专项测试单独跑：
   `AUTH_ENABLED=1 python -m pytest tests/test_auth.py -q`
 
+### 6. 简历风控体检（T55，老师建议②：应对简历造假）
+
+- 简历详情弹窗 → 「风控体检」：三类规则检测——**时间线矛盾**（经历段重叠/倒序）、
+  **技能脱节**（技能清单在经历正文无支撑）、**联系方式格式异常**；风险/提示分级着色，
+  附原文证据
+- 第四类「疑似克隆」已实现但默认关闭（`RISK_CLONE_ENABLED=0`）：真库 business 标签
+  混入 1050 份评测语料（模板孪生相似度 1.0），比对池语义不成立；语料标签正名后启用，
+  设计口径见 `docs/算法设计.md` §9
+- **免责口径**：系统只能暴露文本中的矛盾点供人工复核，技术上无法判定简历真假，
+  提示不构成造假判定；证据凑不齐的检查项直接缺席（信息不足不出行），不硬造提示
+- 接口契约见 `docs/backend-api.md` §1（API-22）
+
 ## 常用命令
 
 | 命令 | 说明 |
 |---|---|
-| `cd backend && .venv/Scripts/python -m pytest -q` | 跑后端单测（业务套件 165 个；鉴权关） |
+| `cd backend && .venv/Scripts/python -m pytest -q` | 跑后端单测（业务套件 182 个；鉴权关） |
 | `AUTH_ENABLED=1 python -m pytest tests/test_auth.py -q` | 鉴权/审计/打码专项（17 个） |
 | `npm run build`（frontend） | 前端构建验证 |
 | `cd backend && .venv/Scripts/python scripts/smoke_e2e.py` | 起服后跑端到端冒烟（另开终端；自动登录） |

@@ -3,7 +3,7 @@
 // × 或点遮罩或 Esc 关闭；打开时主页面滚动由全局 body:has(.modal-overlay) 锁住。
 import { useEffect, useRef, useState } from 'react'
 import {
-  getResume, getResumeData, reparseResume, getJdRecommendations, openResumeFile,
+  getResume, getResumeData, reparseResume, getJdRecommendations, openResumeFile, getResumeRisk,
 } from '../api'
 
 const STATUS_TEXT = { pending: '排队中', processing: '解析中', done: '已完成', failed: '失败' }
@@ -11,11 +11,15 @@ const FIELD_TEXT = {
   name: '姓名', degree: '学历', school: '院校', skill: '技能',
   years: '年限', company: '公司', title: '职位',
 }
+// 风控体检（T55）：level → 徽章文案与配色类（ok 绿 / warn 黄 / risk 红）
+const RISK_LEVEL_TEXT = { ok: '通过', warn: '提示', risk: '风险' }
+const RISK_LEVEL_CLASS = { ok: 'chip ok', warn: 'chip warn', risk: 'chip bad' }
 
 export default function ResumeDetailModal({ resumeId, onClose }) {
   const [detail, setDetail] = useState(null)
   const [data, setData] = useState(null)        // 解析数据视图（API-16）
   const [recs, setRecs] = useState(null)        // 反向推荐（API-17，T39）
+  const [risk, setRisk] = useState(null)        // 风控体检（API-22，T55）
   const [err, setErr] = useState('')
   const [note, setNote] = useState('')          // 重新解析等动作的即时反馈
   const [revealed, setRevealed] = useState(false)      // 原文是否已解除打码（T54，后端记审计）
@@ -26,6 +30,7 @@ export default function ResumeDetailModal({ resumeId, onClose }) {
     setDetail(null)
     setData(null)
     setRecs(null)
+    setRisk(null)
     setErr('')
     setNote('')
     setRevealed(false)
@@ -72,6 +77,17 @@ export default function ResumeDetailModal({ resumeId, onClose }) {
       setRecs({ loading: false, items: d.items })
     } catch (e) {
       setRecs({ loading: false, error: e.message })
+    }
+  }
+
+  // 风控体检（T55）：四类矛盾点检测；免责口径——提示仅供人工复核，不构成造假判定
+  const openRisk = async () => {
+    setRisk({ loading: true })
+    try {
+      const d = await getResumeRisk(resumeId)
+      setRisk({ loading: false, data: d })
+    } catch (e) {
+      setRisk({ loading: false, error: e.message })
     }
   }
 
@@ -123,6 +139,9 @@ export default function ResumeDetailModal({ resumeId, onClose }) {
               {d.parse_status === 'done' && (
                 <button className="btn ghost" onClick={openRecs}>推荐岗位</button>
               )}
+              {d.parse_status === 'done' && (
+                <button className="btn ghost" onClick={openRisk}>风控体检</button>
+              )}
             </div>
             {note && <div className="muted" style={{ marginBottom: 10 }}>{note}</div>}
             {err && <div className="error-text" style={{ marginBottom: 10 }}>{err}</div>}
@@ -144,6 +163,30 @@ export default function ResumeDetailModal({ resumeId, onClose }) {
                     <div className="muted" style={{ fontSize: 12 }}>{it.evidence.join('；') || '暂无证据项'}</div>
                   </div>
                 ))}
+              </div>
+            )}
+            {risk && (
+              <div style={{ marginBottom: 12 }}>
+                <div className="field-label">风控体检 · 时间线矛盾 / 技能脱节 / 联系方式格式异常</div>
+                {risk.loading && <span className="muted">检测中…</span>}
+                {risk.error && <span className="error-text">体检失败：{risk.error}</span>}
+                {risk.data && (
+                  <>
+                    {risk.data.findings.map((f, i) => (
+                      <div key={i} className="risk-item">
+                        <span className={RISK_LEVEL_CLASS[f.level] || 'chip unknown'}>
+                          {RISK_LEVEL_TEXT[f.level] || f.level}
+                        </span>{' '}
+                        <span>{f.text}</span>
+                        {f.evidence && <div className="mono-text">{f.evidence}</div>}
+                      </div>
+                    ))}
+                    <div className="muted" style={{ marginTop: 6 }}>{risk.data.summary} · {risk.data.checked_at}</div>
+                    <div className="warn-text" style={{ marginTop: 8 }}>
+                      提示仅供人工复核，不构成造假判定；证据不足的检查项不会出现在结果里
+                    </div>
+                  </>
+                )}
               </div>
             )}
             {d.parse_status === 'failed' && (

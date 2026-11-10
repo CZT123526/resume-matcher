@@ -86,6 +86,8 @@ export const getResumeData = (id, reveal = false) =>
 // 反向推荐（API-17，T39）：这份简历最适合哪些岗位（Top-K JD，校准融合分）
 export const getJdRecommendations = (id, topK = 3) =>
   request(`/resumes/${id}/jd_recommendations?top_k=${topK}`)
+// 风控体检（API-22，T55）：四类矛盾点检测，提示人工复核，不构成造假判定
+export const getResumeRisk = (id) => request(`/resumes/${id}/risk`)
 
 // ---------- JD ----------
 export const createJd = (title, content) => request('/jds', jsonInit('POST', { title, content }))

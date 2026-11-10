@@ -177,7 +177,12 @@ tr.clickable:hover { background: var(--primary-softer); }
 }
 .chip.ok { background: var(--green-weak); color: var(--green); border-color: #bbf7d0; }
 .chip.bad { background: var(--red-weak); color: var(--red); border-color: #fecaca; }
+.chip.warn { background: var(--amber-weak); color: var(--amber); border-color: #fde68a; } /* T55 风控提示级 */
 .chip.unknown { background: var(--gray-weak); color: var(--muted); border-color: var(--border); }
+
+/* 风控体检条目（T55）：徽章 + 文案 + 证据引用块 */
+.risk-item { margin: 8px 0; font-size: 13.5px; color: var(--text-2); }
+.risk-item .mono-text { margin-top: 5px; font-size: 12.5px; }
 
 /* ---------- 9. 排名卡片（匹配结果） ---------- */
 .rank-card {

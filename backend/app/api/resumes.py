@@ -242,6 +242,19 @@ def jd_recommendations(resume_id: int, top_k: int = Query(3, ge=1, le=10)):
     return ok(recommend_jds_for_resume(resume_id, top_k))
 
 
+@router.get("/{resume_id}/risk")
+def resume_risk(resume_id: int, request: Request):
+    """风控体检（API-22，T55）：时间线矛盾 / 技能脱节 / 疑似克隆 / 联系方式格式异常。
+
+    免责口径：只暴露文本矛盾点供人工复核，不构成造假判定；查看风控必记审计。
+    """
+    from app.svc.risk import risk_check
+
+    result = risk_check(resume_id)
+    log_request_action(request, "view_risk", f"resume_id={resume_id}")
+    return ok(result)
+
+
 @router.get("/{resume_id}/data")
 def resume_data(resume_id: int, request: Request, reveal: bool = Query(False)):
     """解析数据视图（API-16，T29）：这份简历被读成了什么数据——全文/实体/匹配输入/向量。

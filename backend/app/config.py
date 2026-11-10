@@ -49,6 +49,12 @@ class Settings:
     ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
     ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 
+    # 风控克隆检测开关（T55，默认 0 关）：疑似重复投递 = 与业务投递池向量近邻 ≥0.98。
+    # 关闭原因（用户拍板）：真库 business 标签混入 1050 份评测语料（模板孪生相似度 1.0，
+    # 全库 0.98 阈值实测 38052 对），比对池语义不成立；语料标签正名（数据迁移）后置 1 启用。
+    # 检测实现完整保留在 svc/risk.py _clone_finding，测试保持覆盖。
+    RISK_CLONE_ENABLED = os.getenv("RISK_CLONE_ENABLED", "0") == "1"
+
     # 注：DeepSeek 相关配置只存在于 backend/tools/baselines/deepseek_zeroshot.py
     # （离线对照组，直接读环境变量）——运行时配置零外部 API 引用（TC-API-01 红线）。
 

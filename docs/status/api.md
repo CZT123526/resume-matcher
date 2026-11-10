@@ -27,3 +27,4 @@
 | API-19 | GET /api/stats/home | 主页总览（API-19，T48）：库规模计数+应聘岗位排名+岗位储备排名+覆盖面披露 | 成员B | 已完成 | 补录 T48（PR #30 `643dc90`）；含匹配卡定宽对齐+轮询提速 `33dfa1b` |
 | API-20 | POST /api/auth/login、POST /api/auth/logout、GET /api/auth/me | 认证模块（T54）：pbkdf2 哈希、token 只存 SHA-256、首启引导管理员、防枚举同文案 | 成员A | 已完成 | `b18a38d` 2026-11-10；app 级 auth_guard 统一鉴权（豁免面见 core/security.py），401 E4011 |
 | API-21 | （横切口）PII 打码 + 访问审计（T54） | 详情//data/snippet/PDF 姓名 默认打码，?reveal=1 显示原文并记审计；audit_log 十类动作写失败不阻塞业务 | 成员A | 已完成 | `b18a38d` 2026-11-10；真库冒烟 17/17（无token 401/打码/reveal/审计落表/注销失效全过） |
+| API-22 | GET /api/resumes/{id}/risk | 简历风控体检（T55）：时间线矛盾/技能脱节/联系方式格式异常三类启用（疑似克隆已实现默认关——语料标签污染待正名），结构化 findings 分级输出 | 成员A | 已完成 | `1b885fb`+`d1b09e0` 2026-11-10；免责口径=暴露矛盾点供人工复核不构成造假判定；信息不足不出行 |
