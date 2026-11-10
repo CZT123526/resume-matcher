@@ -89,7 +89,7 @@ npm run dev
 
 | 命令 | 说明 |
 |---|---|
-| `cd backend && .venv/Scripts/python -m pytest -q` | 跑后端单测（业务套件 179 个；鉴权关） |
+| `cd backend && .venv/Scripts/python -m pytest -q` | 跑后端单测（业务套件 182 个；鉴权关） |
 | `AUTH_ENABLED=1 python -m pytest tests/test_auth.py -q` | 鉴权/审计/打码专项（17 个） |
 | `npm run build`（frontend） | 前端构建验证 |
 | `cd backend && .venv/Scripts/python scripts/smoke_e2e.py` | 起服后跑端到端冒烟（另开终端；自动登录） |
