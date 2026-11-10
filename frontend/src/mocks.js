@@ -32,6 +32,17 @@ const fixtures = {
   }),
   'GET /resumes/': async (_opt, path) => {
     await delay(200)
+    // 风控体检（API-22，T55）：同走 /resumes/{id}/ 前缀，按路径后缀分流
+    if (path.endsWith('/risk')) {
+      return {
+        resume_id: 1,
+        findings: [
+          { level: 'ok', text: '未发现明显矛盾点' },
+        ],
+        summary: '未发现明显矛盾点',
+        checked_at: '2026-10-10T09:00:00',
+      }
+    }
     return {
       resume_id: 1,
       file_name: '张三.pdf',
@@ -109,9 +120,12 @@ const fixtures = {
 export async function mockFor(path, options = {}) {
   const method = (options.method || 'GET').toUpperCase()
   const key = `${method} ${path}`
+  // 最长前缀命中：'GET /resumes/1' 必须落到详情夹具而不是被列表夹具 'GET /resumes' 截胡
   const hit =
     fixtures[key] ||
-    Object.entries(fixtures).find(([k]) => key.startsWith(k))
+    Object.entries(fixtures)
+      .filter(([k]) => key.startsWith(k))
+      .sort((a, b) => b[0].length - a[0].length)[0]
   if (!hit) throw new Error(`mock 未覆盖: ${key}`)
   const fn = hit[1]
   return fn(options, path)

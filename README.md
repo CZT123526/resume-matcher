@@ -73,11 +73,20 @@ npm run dev
 - 测试套件默认 `AUTH_ENABLED=0` 关闭鉴权；鉴权专项测试单独跑：
   `AUTH_ENABLED=1 python -m pytest tests/test_auth.py -q`
 
+### 6. 简历风控体检（T55，老师建议②：应对简历造假）
+
+- 简历详情弹窗 → 「风控体检」：四类规则检测——**时间线矛盾**（经历段重叠/倒序）、
+  **技能脱节**（技能清单在经历正文无支撑）、**疑似克隆**（与库内他人向量相似度 ≥0.98）、
+  **联系方式格式异常**；风险/提示分级着色，附原文证据
+- **免责口径**：系统只能暴露文本中的矛盾点供人工复核，技术上无法判定简历真假，
+  提示不构成造假判定；证据凑不齐的检查项直接缺席（信息不足不出行），不硬造提示
+- 规则口径见 `docs/算法设计.md` §9，接口契约见 `docs/backend-api.md` §1（API-22）
+
 ## 常用命令
 
 | 命令 | 说明 |
 |---|---|
-| `cd backend && .venv/Scripts/python -m pytest -q` | 跑后端单测（业务套件 165 个；鉴权关） |
+| `cd backend && .venv/Scripts/python -m pytest -q` | 跑后端单测（业务套件 179 个；鉴权关） |
 | `AUTH_ENABLED=1 python -m pytest tests/test_auth.py -q` | 鉴权/审计/打码专项（17 个） |
 | `npm run build`（frontend） | 前端构建验证 |
 | `cd backend && .venv/Scripts/python scripts/smoke_e2e.py` | 起服后跑端到端冒烟（另开终端；自动登录） |
