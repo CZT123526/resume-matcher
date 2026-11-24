@@ -11,7 +11,7 @@ export default function Users({ me }) {
   const [busy, setBusy] = useState(false)
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
-  const [role, setRole] = useState('hr')
+  const [role, setRole] = useState('') // 不预设默认角色，创建人必须显式选择（用户要求）
   const [resetTarget, setResetTarget] = useState(null) // 用户名字符串，非 null 即弹重置窗
   const [newPassword, setNewPassword] = useState('')
   const [resetBusy, setResetBusy] = useState(false)
@@ -46,6 +46,10 @@ export default function Users({ me }) {
       setMsg('初始密码至少 6 位')
       return
     }
+    if (!role) {
+      setMsg('请选择角色')
+      return
+    }
     setBusy(true)
     setMsg('')
     try {
@@ -53,7 +57,7 @@ export default function Users({ me }) {
       setMsg(`已创建账号 ${data.username}，角色 ${data.role === 'admin' ? '管理员' : '普通用户'}`)
       setUsername('')
       setPassword('')
-      setRole('hr')
+      setRole('')
       await refresh()
     } catch (e) {
       setMsg(`创建失败：${e.message}`)
@@ -114,6 +118,7 @@ export default function Users({ me }) {
           <div>
             <div className="field-label">角色</div>
             <select value={role} onChange={(e) => setRole(e.target.value)}>
+              <option value="">请选择角色</option>
               <option value="hr">普通用户</option>
               <option value="admin">管理员</option>
             </select>

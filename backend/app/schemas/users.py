@@ -17,7 +17,8 @@ class CreateUserIn(BaseModel):
         description="登录名：2~32 位，字母数字下划线点连字符，兼容中文",
     )
     password: str = Field(min_length=6, max_length=128, description="初始密码（只存 pbkdf2 哈希）")
-    role: Literal["hr", "admin"] = "hr"
+    # 无默认值：建号必须显式指定角色，防止静默降级成 hr（用户明确要求删默认）
+    role: Literal["hr", "admin"]
 
 
 class ResetPasswordIn(BaseModel):

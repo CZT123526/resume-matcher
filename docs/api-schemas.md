@@ -261,9 +261,9 @@ Body：`{"jd_id": int, "top_k": int=10, 1..50}`
 
 ### POST /api/users `200`
 
-- 请求：`{"username": string, "password": string(6~128), "role": "hr"|"admin" = "hr"}`
+- 请求：`{"username": string, "password": string(6~128), "role": "hr"|"admin"}`（role 必填无默认，缺省/非法 → 422 统一转 `400 E4001`）
 - `data`：`{username: string, role: "hr"|"admin"}`
-- 失败：`409 E4091` 用户名已存在；role 非法 → 422 统一转 `400 E4001`
+- 失败：`409 E4091` 用户名已存在
 
 ### DELETE /api/users/{username} `200`
 

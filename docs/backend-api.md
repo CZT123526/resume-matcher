@@ -302,7 +302,7 @@ admin 角色独占：路由级 `require_admin` 依赖校验（app 级 auth_guard
 - 全量返回不分页（账号量级极小），按创建时间倒序、新账号在前
 
 ### POST /api/users ｜仅管理员
-- 请求 `{"username": "wang_hr", "password": "…", "role": "hr"}`，role 取值 `hr` / `admin`，缺省 `hr`
+- 请求 `{"username": "wang_hr", "password": "…", "role": "hr"}`，role 取值 `hr` / `admin`，**必填无默认**——建号必须显式指定角色，缺省即 `400 E4001`
 - 响应 `200`：`{"code":0, "data": {"username": "wang_hr", "role": "hr"}}`
 - 失败：`409 E4091` 用户名已存在
 - 审计：`user_create`（操作者、目标用户名均落 audit_log）

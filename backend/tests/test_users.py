@@ -122,6 +122,14 @@ def test_create_rejects_bad_role():
     assert r.status_code == 400 and r.json()["code"] == "E4001"
 
 
+def test_create_requires_explicit_role():
+    """role 必填无默认（T57）：缺省即 400，不静默降级成 hr"""
+    h = _auth_header(_admin_token())
+    r = client.post("/api/users", headers=h,
+                    json={"username": "ok_name", "password": "wang123"})
+    assert r.status_code == 400 and r.json()["code"] == "E4001"
+
+
 def test_create_rejects_unsafe_username():
     """username 进 DELETE 路径：空格与 / ? # % 一律拒绝"""
     h = _auth_header(_admin_token())
