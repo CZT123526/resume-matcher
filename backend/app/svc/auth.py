@@ -90,3 +90,29 @@ def ensure_admin() -> None:
             "ADMIN_PASSWORD 未设置，管理员 %s 使用默认密码 admin123，请尽快在 backend/.env 设置并重启！",
             settings.ADMIN_USERNAME,
         )
+
+
+def change_password(username: str, old_password: str, new_password: str, keep_token: str) -> None:
+    """用户修改自己的密码（T56）：旧密码验通过才改；当前会话保留、其他会话全部下线。
+
+    旧密码错误走 400 E4001 而非 401——前端契约里 401 等价于会话失效自动登出，
+    业务性凭证拒绝必须避开，否则输错旧密码会被整页登出（契约 docs/backend-api.md §7）。
+    """
+    conn = get_db()
+    try:
+        row = conn.execute(
+            "SELECT password_hash FROM users WHERE username=?", (username,)
+        ).fetchone()
+        if row is None or not verify_password(old_password, row["password_hash"]):
+            raise AppError(ErrorCode.BAD_PARAM, "旧密码不正确")
+        conn.execute(
+            "UPDATE users SET password_hash=? WHERE username=?",
+            (hash_password(new_password), username),
+        )
+        conn.execute(
+            "DELETE FROM sessions WHERE username=? AND token_hash != ?",
+            (username, token_hash(keep_token)),
+        )
+        conn.commit()
+    finally:
+        conn.close()

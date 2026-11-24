@@ -6,9 +6,9 @@
 from fastapi import APIRouter, Request
 
 from app.common.response import ok
-from app.core.errors import AppError
-from app.schemas.auth import LoginIn
-from app.svc.auth import authenticate, logout_token
+from app.core.errors import AppError, ErrorCode
+from app.schemas.auth import ChangePasswordIn, LoginIn
+from app.svc.auth import authenticate, change_password, logout_token
 from app.svc.audit import log_action, log_request_action
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -45,3 +45,21 @@ def me(request: Request):
         "username": getattr(request.state, "username", None),
         "role": getattr(request.state, "role", None),
     })
+
+
+@router.post("/password")
+def change_own_password(body: ChangePasswordIn, request: Request):
+    """修改自己的密码（T56）：当前会话保留，该用户其他会话全部下线。
+
+    旧密码错误返回 400 E4001 而非 401——前端把 401 契约在「会话失效自动登出」上，
+    业务性拒绝必须避开（契约 docs/backend-api.md §7）。
+    """
+    username = getattr(request.state, "username", None)
+    if not username:
+        # 仅 AUTH_ENABLED=0 可达：开放模式无会话身份，如实暴露
+        raise AppError(ErrorCode.UNAUTHORIZED, "未登录或凭证失效")
+    auth = request.headers.get("Authorization", "")
+    token = auth[7:].strip() if auth.startswith("Bearer ") else ""
+    change_password(username, body.old_password, body.new_password, keep_token=token)
+    log_request_action(request, "user_change_password", target=username)
+    return ok({"changed": True})

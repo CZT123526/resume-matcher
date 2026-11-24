@@ -18,6 +18,21 @@ const fixtures = {
   },
   'POST /auth/logout': async () => ({ logged_out: true }),
   'GET /auth/me': async () => ({ username: 'admin', role: 'admin' }),
+  // 用户管理夹具（T56）：内存态演示增删与重置，刷新即还原
+  'GET /users': async () => ({
+    total: 2,
+    items: [
+      { username: 'admin', role: 'admin', created_at: '2026-11-10T09:00:00' },
+      { username: 'wang_hr', role: 'hr', created_at: '2026-11-24T10:00:00' },
+    ],
+  }),
+  'POST /users': async () => {
+    await delay()
+    return { username: 'new_hr', role: 'hr' }
+  },
+  'DELETE /users/': async () => ({ deleted: true, deleted_sessions: 1 }),
+  'POST /users/': async () => ({ reset: true }),
+  'POST /auth/password': async () => ({ changed: true }),
   'POST /resumes/upload': async () => {
     await delay()
     return { resume_id: ++resumeSeq, file_name: '示例简历.pdf', parse_status: 'pending' }

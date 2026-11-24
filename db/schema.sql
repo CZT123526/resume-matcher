@@ -99,7 +99,7 @@ CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(username); -- 按用户
 CREATE TABLE IF NOT EXISTS audit_log (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,      -- 记录ID
     username   TEXT,                                   -- 操作人（登录失败时为提交的用户名，可能不存在）
-    action     TEXT    NOT NULL,                       -- 动作：login_success/login_fail/logout/view_resume/reveal_pii/download_file/export_pdf/delete_resume/upload_resume/create_match_task/view_risk
+    action     TEXT    NOT NULL,                       -- 动作：login_success/login_fail/logout/view_resume/reveal_pii/download_file/export_pdf/delete_resume/upload_resume/create_match_task/view_risk/user_create/user_delete/user_reset_password/user_change_password（T56）
     target     TEXT,                                   -- 目标对象（如 resume_id=1 / task_id=2）
     detail     TEXT,                                   -- 补充信息（短文本/JSON）
     ip         TEXT,                                   -- 客户端 IP

@@ -112,5 +112,17 @@ export const getMatchScoreDistribution = (id) =>
 // 主页总览（API-19，T48）：库规模 + 两类排名，口径说明见 docs/backend-api.md §6
 export const getHomeStats = () => request('/stats/home')
 
+// ---------- 用户管理（API-23，T56）：仅管理员；修改自己的密码所有登录用户可用 ----------
+// username 一律 encodeURIComponent——该值出现在 DELETE 路径中，后端契约已禁路径敌对字符，双保险
+export const listUsers = () => request('/users')
+export const createUser = (username, password, role) =>
+  request('/users', jsonInit('POST', { username, password, role }))
+export const deleteUser = (username) =>
+  request(`/users/${encodeURIComponent(username)}`, { method: 'DELETE' })
+export const resetUserPassword = (username, newPassword) =>
+  request(`/users/${encodeURIComponent(username)}/reset_password`, jsonInit('POST', { new_password: newPassword }))
+export const changePassword = (oldPassword, newPassword) =>
+  request('/auth/password', jsonInit('POST', { old_password: oldPassword, new_password: newPassword }))
+
 // ---------- 模型 ----------
 export const getModelInfo = () => request('/model/info')

@@ -110,3 +110,17 @@ def _drop_session(token: str) -> None:
         conn.commit()
     finally:
         conn.close()
+
+
+def require_admin(request: Request) -> None:
+    """路由级管理员守卫（T56 用户管理专用，挂在 /api/users 路由上）。
+
+    FastAPI 实测（0.143）：app 级依赖先于路由级依赖执行，auth_guard 已把
+    request.state.role 写好，这里直接读即可，无须重复查库。
+    AUTH_ENABLED=0 时与 auth_guard 同口径放行（测试套件依赖）。
+    非 admin 一律 403 E4031——已登录但角色不足，与 401 的会话语义严格区分。
+    """
+    if not settings.AUTH_ENABLED:
+        return
+    if getattr(request.state, "role", None) != "admin":
+        raise AppError(ErrorCode.FORBIDDEN, "仅管理员可执行此操作")
