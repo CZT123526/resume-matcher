@@ -97,12 +97,12 @@ export default function Home() {
       <div className="card">
         <h3>岗位人才储备排名 · 前十</h3>
         <div className="muted" style={{ marginBottom: 8 }}>
-          每个岗位取最近一次完成的匹配任务，条上数字为该次召回的简历份数，由当次任务的召回设置决定 ·
+          条上数字为该岗位历次匹配中进入过候选名单的简历数，按简历去重 · 只跑过一次的岗位即当次召回人数 ·
           未跑过匹配的岗位不进榜，还有 {stats.jd_count - stats.jd_covered} 个岗位没跑过
         </div>
         {stats.jd_rank.length ? (
           <Suspense fallback={<div className="skeleton" style={{ height: 280 }} />}>
-            <Chart option={rankOption(stats.jd_rank, '#d97706', 'recalled')} height={280} />
+            <Chart option={rankOption(stats.jd_rank, '#d97706', 'candidates')} height={280} />
           </Suspense>
         ) : (
           <div className="empty">先去「人才匹配」页发起一次匹配，这里就会有数据</div>

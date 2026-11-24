@@ -22,9 +22,10 @@ def home_stats():
 
     - title_rank（简历应聘岗位排名）：按解析出的任职/应聘岗位名称统计简历数，
       一份简历可命中多个岗位名、均计入；
-    - jd_rank（岗位人才储备排名）：每个岗位取最近一次完成的匹配任务，
-      召回简历数按当次任务的召回设置如实记录（不同任务的召回人数设置不同，
-      历史数据只展示不补算）；从未跑过匹配的岗位不进榜，用 jd_covered 如实披露覆盖面。
+    - jd_rank（岗位人才储备排名，T58 去重口径）：candidates = 该岗位历次完成的匹配
+      任务中进入过召回名单的简历数（按简历去重）。此前「最近一次任务召回份数」口径
+      在固定 top_k 下恒等于召回设置值（全是 10），无区分度，用户实测指出后废弃。
+      只跑过一次的岗位即当次召回数；从未跑过匹配的岗位不进榜，用 jd_covered 如实披露。
     """
     biz_cond = _corpus_conds("business")[0]
     rw_cond = _corpus_conds("rewrite")[0]
@@ -57,13 +58,14 @@ def home_stats():
             (TITLE_RANK_LIMIT,),
         ).fetchall()
         jd_rows = conn.execute(
-            "SELECT t.jd_id, j.title, t.finished_at AS last_run_at,"
-            " (SELECT COUNT(*) FROM match_results m WHERE m.task_id=t.id) AS recalled,"
-            " (SELECT COUNT(*) FROM match_tasks t2 WHERE t2.jd_id=t.jd_id AND t2.status='done') AS task_count"
+            "SELECT t.jd_id, j.title, MAX(t.finished_at) AS last_run_at,"
+            " COUNT(DISTINCT m.resume_id) AS candidates,"
+            " COUNT(DISTINCT t.id) AS task_count"
             " FROM match_tasks t JOIN jds j ON j.id=t.jd_id"
-            " WHERE t.status='done' AND t.id=("
-            "   SELECT MAX(t3.id) FROM match_tasks t3 WHERE t3.jd_id=t.jd_id AND t3.status='done')"
-            " ORDER BY recalled DESC, t.jd_id LIMIT ?",
+            " JOIN match_results m ON m.task_id=t.id"
+            " WHERE t.status='done'"
+            " GROUP BY t.jd_id"
+            " ORDER BY candidates DESC, t.jd_id LIMIT ?",
             (JD_RANK_LIMIT,),
         ).fetchall()
     finally:
@@ -88,7 +90,7 @@ def home_stats():
             {
                 "jd_id": r["jd_id"],
                 "title": r["title"],
-                "recalled": r["recalled"],
+                "candidates": r["candidates"],
                 "task_count": r["task_count"],
                 "last_run_at": iso_time(r["last_run_at"]),
             }

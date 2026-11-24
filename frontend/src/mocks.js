@@ -121,7 +121,7 @@ const fixtures = {
       { title: '算法工程师', n: 39 },
     ],
     jd_rank: [
-      { jd_id: 1, title: 'Python后端工程师', recalled: 12, task_count: 3, last_run_at: '2026-10-10T12:00:00' },
+      { jd_id: 1, title: 'Python后端工程师', candidates: 12, task_count: 3, last_run_at: '2026-10-10T12:00:00' },
     ],
   }),
   'GET /model/info': async () => ({

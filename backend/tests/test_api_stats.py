@@ -88,25 +88,32 @@ def test_home_stats_counts_and_title_rank():
     assert d["title_kinds"] >= 2 and d["title_resumes"] >= 3
 
 
-def test_home_stats_jd_rank_latest_task_recall():
-    """岗位储备排名：每岗位取最近一次 done 任务，召回数=当次 top_k 截断后的结果行数"""
+def test_home_stats_jd_rank_distinct_candidates():
+    """岗位储备排名（T58 去重口径）：candidates = 历次 done 任务进入过召回名单的简历数去重。
+
+    甲岗位跑两次（top_k=3、top_k=1，池不变则第二次 top1 必在第一次 top3 内）：
+    去重后应仍为 3——若误用「累计召回人次」会得 4，若误用「最近一次」会得 1，
+    本断言两种退化口径都防。乙岗位单次 top_k=1：即当次召回数 1。
+    """
     # 保证匹配池非空：本用例自己上传 3 份真解析简历
     for i in range(3):
         _upload(f"储备池简历{i}.docx", "姓名：储备员\n技能：Python FastAPI")
 
     jid_a = client.post("/api/jds", json={"title": "储备排名甲岗位", "content": "要求：Python。"}).json()["data"]["jd_id"]
     jid_b = client.post("/api/jds", json={"title": "储备排名乙岗位", "content": "要求：Python。"}).json()["data"]["jd_id"]
-    ta = client.post("/api/match-tasks", json={"jd_id": jid_a, "top_k": 3}).json()["data"]["task_id"]
+    ta1 = client.post("/api/match-tasks", json={"jd_id": jid_a, "top_k": 3}).json()["data"]["task_id"]
+    ta2 = client.post("/api/match-tasks", json={"jd_id": jid_a, "top_k": 1}).json()["data"]["task_id"]
     tb = client.post("/api/match-tasks", json={"jd_id": jid_b, "top_k": 1}).json()["data"]["task_id"]
-    assert client.get(f"/api/match-tasks/{ta}").json()["data"]["status"] == "done"
-    assert client.get(f"/api/match-tasks/{tb}").json()["data"]["status"] == "done"
+    for t in (ta1, ta2, tb):
+        assert client.get(f"/api/match-tasks/{t}").json()["data"]["status"] == "done"
 
     d = client.get("/api/stats/home").json()["data"]
     jr = {x["jd_id"]: x for x in d["jd_rank"]}
-    assert jr[jid_a]["recalled"] == 3
-    assert jr[jid_b]["recalled"] == 1
-    assert jr[jid_a]["task_count"] >= 1 and jr[jid_a]["title"] == "储备排名甲岗位"
+    assert jr[jid_a]["candidates"] == 3   # 两任务去重=3，防「累计人次=4」与「最近一次=1」两种退化
+    assert jr[jid_a]["task_count"] == 2
+    assert jr[jid_a]["title"] == "储备排名甲岗位"
+    assert jr[jid_b]["candidates"] == 1 and jr[jid_b]["task_count"] == 1
     assert jr[jid_a]["last_run_at"] and "T" in jr[jid_a]["last_run_at"]
-    ns = [x["recalled"] for x in d["jd_rank"]]
+    ns = [x["candidates"] for x in d["jd_rank"]]
     assert ns == sorted(ns, reverse=True)
     assert len(d["jd_rank"]) <= 10
