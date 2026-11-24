@@ -108,12 +108,14 @@ export default function Users({ me }) {
             <div className="field-label">用户名</div>
             <input style={{ width: '100%' }} value={username} maxLength={32}
               placeholder="2~32 位，字母数字下划线点连字符，兼容中文"
+              autoComplete="off"
               onChange={(e) => setUsername(e.target.value)} />
           </div>
           <div style={{ flex: 1 }}>
             <div className="field-label">初始密码</div>
             <input style={{ width: '100%' }} value={password} maxLength={128} type="password"
-              placeholder="至少 6 位，建议组合字母数字" onChange={(e) => setPassword(e.target.value)} />
+              placeholder="至少 6 位，建议组合字母数字" autoComplete="new-password"
+              onChange={(e) => setPassword(e.target.value)} />
           </div>
           <div>
             <div className="field-label">角色</div>
