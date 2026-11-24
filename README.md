@@ -64,14 +64,16 @@ npm run dev
 # 浏览器开 http://localhost:5173 → 登录后进入系统
 ```
 
-### 5. 登录账号（T54 认证）
+### 5. 登录账号（T54 认证）与账号管理（T56）
 
 - 首次启动 users 表为空时，按 `backend/.env` 的 `ADMIN_USERNAME`/`ADMIN_PASSWORD` 创建管理员；
-  未设置则默认 **admin / admin123**（启动日志 ⚠ 提示，演示前请在 `.env` 改掉）
-- 登录后所有简历查看、下载、导出、删除操作均记入审计日志（`audit_log` 表）
+  未设置则默认 **admin / admin123**（启动日志 ⚠ 提示，演示前请登录后在左下角「修改密码」改掉）
+- 管理员在侧边栏「账号管理」页建号/删号/重置密码（hr/admin 两级角色，hr 不可见该页）；
+  所有登录用户可从侧边栏底部「修改密码」改自己的密码——当前会话保持，其他登录会话下线
+- 登录后所有简历查看、下载、导出、删除操作均记入审计日志（`audit_log` 表）；建号/删号/重置/改密同样留痕
 - 简历原文中的手机号/邮箱/身份证默认打码展示；查看完整原文会记审计
-- 测试套件默认 `AUTH_ENABLED=0` 关闭鉴权；鉴权专项测试单独跑：
-  `AUTH_ENABLED=1 python -m pytest tests/test_auth.py -q`
+- 测试套件默认 `AUTH_ENABLED=0` 关闭鉴权；鉴权与用户管理专项单独跑：
+  `AUTH_ENABLED=1 python -m pytest tests/test_auth.py tests/test_users.py -q`
 
 ### 6. 简历风控体检（T55，老师建议②：应对简历造假）
 
@@ -89,8 +91,8 @@ npm run dev
 
 | 命令 | 说明 |
 |---|---|
-| `cd backend && .venv/Scripts/python -m pytest -q` | 跑后端单测（业务套件 182 个；鉴权关） |
-| `AUTH_ENABLED=1 python -m pytest tests/test_auth.py -q` | 鉴权/审计/打码专项（17 个） |
+| `cd backend && .venv/Scripts/python -m pytest -q` | 跑后端单测（业务套件 192 个；鉴权关） |
+| `AUTH_ENABLED=1 python -m pytest tests/test_auth.py tests/test_users.py -q` | 鉴权/审计/打码/用户管理专项（34 个） |
 | `npm run build`（frontend） | 前端构建验证 |
 | `cd backend && .venv/Scripts/python scripts/smoke_e2e.py` | 起服后跑端到端冒烟（另开终端；自动登录） |
 | `cd backend && .venv/Scripts/python tools/run_experiments.py` | 三组对比实验 → docs/eval/ |

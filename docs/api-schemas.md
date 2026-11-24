@@ -22,11 +22,12 @@
 
 | code | HTTP | 含义 | 典型场景 |
 |---|---|---|---|
-| E4001 | 400 | 参数错误 | 校验失败、JSON 解析失败 |
+| E4001 | 400 | 参数错误 | 校验失败、JSON 解析失败、修改密码旧密码不匹配（T56） |
 | E4002 | 400 | 文件类型不支持 | 上传 .exe/.zip |
 | E4011 | 401 | 未登录或凭证失效 | 未携带/过期/无效 token（T54） |
+| E4031 | 403 | 无权限 | 非 admin 调用用户管理接口（T56） |
 | E4041 | 404 | 资源不存在 | resume_id/jd_id/task_id 无效 |
-| E4091 | 409 | 状态冲突 | 重复提交解析中的简历 |
+| E4091 | 409 | 状态冲突 | 重复提交解析中的简历；用户名已存在/删除自己/删最后一个管理员/对自己重置密码（T56） |
 | E4131 | 413 | 文件过大 | > 10MB |
 | E5001 | 500 | 服务内部错误 | 兜底，不含堆栈细节 |
 
@@ -233,6 +234,12 @@ Body：`{"jd_id": int, "top_k": int=10, 1..50}`
 
 `data`：`{username: string, role: "hr"|"admin"}`
 
+### POST /api/auth/password `200` ｜T56 修改自己的密码
+
+- 请求：`{"old_password": string(1~128), "new_password": string(6~128)}`
+- `data`：`{changed: true}`——当前会话保持，该用户其他登录会话全部失效
+- 失败：`400 E4001` 旧密码不正确。**刻意不用 401**：前端契约中 401 等价于会话失效自动登出，业务性凭证拒绝走 400
+
 ### 打码口径（T54）
 
 - `mask_pii`：手机号 `1[3-9]\d{9}` → 前 3 后 4（`138****1234`）；邮箱 → 用户名前 2 位 + `***@域名`；身份证 18 位 → 前 4 后 2
@@ -242,11 +249,40 @@ Body：`{"jd_id": int, "top_k": int=10, 1..50}`
 
 ---
 
+## 6. 用户管理模块（T56）｜仅管理员
+
+- 路由级 `require_admin` 依赖（`core/security.py`），非 admin 一律 `403 E4031`；`AUTH_ENABLED=0` 随全站放行
+- username 约束：`^[\w.-]{2,32}$`（pydantic `\w` 为 Unicode 语义，兼容中文用户名；禁空格与路径敌对字符——该值出现在 DELETE 路径中）
+- 密码约束：6~128 位
+
+### GET /api/users `200`
+
+`data`：`{items: [{username: string, role: "hr"|"admin", created_at: ISO 时间}], total: int}`——全量不分页，创建时间倒序
+
+### POST /api/users `200`
+
+- 请求：`{"username": string, "password": string(6~128), "role": "hr"|"admin" = "hr"}`
+- `data`：`{username: string, role: "hr"|"admin"}`
+- 失败：`409 E4091` 用户名已存在；role 非法 → 422 统一转 `400 E4001`
+
+### DELETE /api/users/{username} `200`
+
+`data`：`{deleted: true, deleted_sessions: int}`——目标用户全部会话连带删除
+失败：`409 E4091` 不能删除自己的账号 / 至少保留一个管理员账号；`404 E4041` 用户不存在
+
+### POST /api/users/{username}/reset_password `200`
+
+- 请求：`{"new_password": string(6~128)}`
+- `data`：`{reset: true}`——目标用户全部会话失效
+- 失败：`409 E4091` 不能重置自己的密码，请在修改密码中操作；`404 E4041` 用户不存在
+
+---
+
 ## 附：契约代码位置
 
 | 契约 | 代码 |
 |---|---|
-| 本文档全部字段 | `backend/app/schemas/*.py` |
+| 本文档全部字段 | `backend/app/schemas/*.py`（用户管理见 `users.py`，T56） |
 | 错误码/异常 | `backend/app/core/errors.py`（AppError） |
 | 响应包裹 | `backend/app/common/response.py`（ok/fail） |
 | svc 层签名 | `backend/app/svc/contracts.py`（S01–S11） |

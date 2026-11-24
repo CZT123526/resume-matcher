@@ -46,9 +46,6 @@ export default function Login({ onLogin }) {
         <button className="btn" type="submit" disabled={busy} style={{ width: '100%', marginTop: 18 }}>
           {busy ? '登录中…' : '登录'}
         </button>
-        <div className="muted" style={{ marginTop: 16, fontSize: 12, textAlign: 'center' }}>
-          简历数据含个人联系方式，仅限授权人员登录查看，全程留痕
-        </div>
       </form>
     </div>
   )

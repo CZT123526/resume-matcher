@@ -15,7 +15,7 @@ from app.config import settings
 from app.core.errors import AppError, ErrorCode, HTTP_STATUS
 from app.core.security import auth_guard
 from app.db import backfill_search_index, init_db
-from app.api import auth, jds, match, reports, resumes, stats
+from app.api import auth, jds, match, reports, resumes, stats, users
 from app.svc.auth import ensure_admin
 
 
@@ -146,3 +146,5 @@ app.include_router(jds.router)
 app.include_router(match.router)
 app.include_router(reports.router)
 app.include_router(stats.router)
+# 用户管理（T56）：路由级 require_admin 守卫在 router 定义处统一挂载
+app.include_router(users.router)
