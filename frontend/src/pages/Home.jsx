@@ -6,7 +6,7 @@ const Chart = lazy(() => import('../components/Chart'))
 
 // 主页（T48，API-19）：库规模总览 + 两类排名。数字全部来自业务库实时聚合，
 // 口径如实写在脚注；展示纪律与全站一致：中文先行、不写括号注解。
-function rankOption(rows, color) {
+function rankOption(rows, color, valueKey = 'n') {
   const data = [...rows].reverse() // 倒序放入 → 渲染后最大值在顶
   return {
     grid: { left: 160, right: 40, top: 8, bottom: 24 },
@@ -24,7 +24,8 @@ function rankOption(rows, color) {
     },
     series: [{
       type: 'bar', barMaxWidth: 18,
-      data: data.map((r) => ({ value: r.n, itemStyle: { color, borderRadius: [0, 4, 4, 0] } })),
+      // 值字段两图不同源：应聘岗位排名用 n（API-19 title_rank），人才储备排名用 recalled（jd_rank，T57 修显示空白）
+      data: data.map((r) => ({ value: r[valueKey], itemStyle: { color, borderRadius: [0, 4, 4, 0] } })),
       label: { show: true, position: 'right', color: '#374151', fontSize: 12 },
     }],
   }
@@ -101,7 +102,7 @@ export default function Home() {
         </div>
         {stats.jd_rank.length ? (
           <Suspense fallback={<div className="skeleton" style={{ height: 280 }} />}>
-            <Chart option={rankOption(stats.jd_rank, '#d97706')} height={280} />
+            <Chart option={rankOption(stats.jd_rank, '#d97706', 'recalled')} height={280} />
           </Suspense>
         ) : (
           <div className="empty">先去「人才匹配」页发起一次匹配，这里就会有数据</div>
