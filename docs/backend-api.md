@@ -255,12 +255,12 @@
   "jd_count": 65, "jd_covered": 12, "match_done": 35,
   "title_kinds": 165, "title_resumes": 1186,
   "title_rank": [{"title": "后端开发工程师", "n": 42}, "…降序，最多 10 条"],
-  "jd_rank": [{"jd_id": 20, "title": "商业数据分析师", "recalled": 50, "task_count": 3, "last_run_at": "2026-10-20T13:41:21"}, "…按 recalled 降序，最多 10 条"]
+  "jd_rank": [{"jd_id": 20, "title": "商业数据分析师", "candidates": 50, "task_count": 3, "last_run_at": "2026-10-20T13:41:21"}, "…按 candidates 降序，最多 10 条"]
 }}
 ```
 > 口径说明：`resumes` 五类计数与简历列表页 `corpus_counts` 同一算法（按 `resumes.source` 显式列，T53 起上传即标记），`all` 恒等于四类之和；
 > `title_rank` 为简历应聘岗位排名，按解析出的任职/应聘岗位名称统计简历数，一份简历可命中多个岗位名、均计入，未抽到岗位字段的简历不计入；
-> `jd_rank` 为岗位人才储备排名，每个岗位取**最近一次完成的**匹配任务，`recalled` 为该次任务召回的简历份数（受当次 `top_k` 设置影响，历史数据如实展示不补算），`task_count` 为该岗位累计完成的匹配任务数；
+> `jd_rank` 为岗位人才储备排名（T58 起改为去重口径），`candidates` 为该岗位**历次完成的匹配任务中进入过召回名单的简历数**（按简历去重；只跑过一次的岗位即当次召回数，受当次 `top_k` 影响；此前「最近一次任务召回份数」口径在固定 top_k 下恒等于召回设置值、无区分度，已废弃），`task_count` 为该岗位累计完成的匹配任务数；
 > 从未跑过匹配的岗位不进榜，覆盖面用 `jd_covered` / `jd_count` 如实披露。
 
 ---
